@@ -87,7 +87,8 @@ def plot_save_pred(original_img, original_mask, pred_mask, save_dir, img_id):
     warnings.filterwarnings('ignore')
 
     os.makedirs(save_dir, exist_ok=True)
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 16))
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14, 6))
+
     ax1.axis('off')
     ax2.axis('off')
     ax3.axis('off')
@@ -105,11 +106,8 @@ def plot_save_pred(original_img, original_mask, pred_mask, save_dir, img_id):
     ax3.imshow(masked, 'jet', interpolation='bilinear', alpha=0.25)
     ax3.set_title("Prediction Overlay")
 
-    os.makedirs(os.path.join(save_dir, "preds_overlays"), exist_ok=True)
-
     pred_filename = os.path.join(
         save_dir,
-        "preds_overlays",
         f"mask_pred_{img_id}.png",
     )
     plt.savefig(pred_filename, dpi=200, pad_inches=0.2, bbox_inches='tight')

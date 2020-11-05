@@ -40,7 +40,7 @@ parser.add_argument('--num_classes', type=int, default=1, help='Model output neu
 # Accept a list of string metrics: train.py --metrics iou dice hauss
 parser.add_argument('--metrics', '--names-list', nargs='+', default=[])
 
-parser.add_argument('--generate_overlays', action='store_true', help='If generate masks  overlays or not')
+parser.add_argument('--generated_overlays', type=int, default=-1, help='Number of generate masks overlays')
 
 parser.add_argument('--optimizer', type=str, default='adam', help='Optimizer for training')
 parser.add_argument('--scheduler', type=str, default="", help='Where is the model checkpoint saved')
@@ -57,11 +57,9 @@ parser.add_argument('--weights_criterion', type=str, default='default', help='We
 
 parser.add_argument('--model_checkpoint', type=str, default="", help='If there is a model checkpoint to load')
 
-parser.add_argument('--apply_swa', action='store_true', help='Apply stochastic weight averaging')
 parser.add_argument('--swa_freq', type=int, default=1, help='SWA Frequency')
-parser.add_argument('--swa_start', type=int, default=60, help='Epoch to start SWA and scheduler SWA_LR')
+parser.add_argument('--swa_start', type=int, default=-1, help='Epoch to start SWA and scheduler SWA_LR')
 parser.add_argument('--swa_lr', type=float, default=0.05, help='SWA learning rate scheduler WA_LR')
-
 
 parser.add_argument(
     '--mask_reshape_method', type=str, default="", help='How to reescale segmentation predictions.',

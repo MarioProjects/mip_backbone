@@ -27,7 +27,7 @@ problem_type="segmentation"
 #   -> small_segmentation_unet - small_segmentation_small_unet
 #      small_segmentation_extrasmall_unet - small_segmentation_nano_unet
 #   -> resnet18_pspnet_unet - resnet34_pspnet_unet
-model="small_segmentation_extrasmall_unet"
+model="small_segmentation_extra_small_unet"
 
 img_size=224
 crop_size=224
@@ -54,6 +54,8 @@ data_augmentation="drive"
 normalization="standardize"  # reescale - standardize
 mask_reshape_method="resize"  # padd - resize
 
+generated_overlays=10
+
 # Available criterions:
 # bce - bce_dice - bce_dice_ac - bce_dice_border - bce_dice_border_ce
 #criterion="bce_dice_border_ce"
@@ -69,7 +71,7 @@ python3 -u train.py --gpu $gpu --dataset $dataset --model_name $model --img_size
 --scheduler $scheduler --learning_rate $lr --swa_lr $swa_lr --optimizer $optimizer --criterion $criterion \
 --normalization $normalization --weights_criterion $weights_criterion --data_augmentation $data_augmentation \
 --output_dir "$output_dir" --metrics iou dice --problem_type $problem_type --mask_reshape_method $mask_reshape_method \
-#--generate_overlays
+#--generated_overlays $generated_overlays
 
 
 

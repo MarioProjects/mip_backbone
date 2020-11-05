@@ -27,8 +27,7 @@ def model_selector(problem_type, model_name, num_classes, in_channels, devices="
 
     model_total_params = sum(p.numel() for p in model.parameters())
     print("Model total number of parameters: {}".format(model_total_params))
-    if len(devices.split(",")) > 1:
-        model = torch.nn.DataParallel(model, device_ids=range(torch.cuda.device_count()))
+    model = torch.nn.DataParallel(model, device_ids=range(torch.cuda.device_count()))
 
     if checkpoint != "":
         print("Loaded model from checkpoint: {}".format(checkpoint))

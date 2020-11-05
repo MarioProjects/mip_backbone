@@ -18,7 +18,7 @@ else
   echo "SIMEPU Segmentation data found at 'data' directory!"
 fi
 
-gpu="0"
+gpu="0,1"
 dataset="SIMEPUSegmentation"
 problem_type="segmentation"
 
@@ -27,21 +27,21 @@ problem_type="segmentation"
 #   -> small_segmentation_unet - small_segmentation_small_unet
 #      small_segmentation_extrasmall_unet - small_segmentation_nano_unet
 #   -> resnet18_pspnet_unet - resnet34_pspnet_unet
-model="small_segmentation_extrasmall_unet"
+model="small_segmentation_extra_small_unet"
 
 # Available classes: Grietas longitudinales - Grietas transversales - Huecos - Parcheo
 selected_class="Parcheo"
 
 img_size=512
 crop_size=512
+batch_size=28
 
-epochs=50
-swa_start=40
-batch_size=4
+epochs=100
+swa_start=-1
 
 # Available schedulers:
 # constant - steps - plateau - one_cycle_lr (max_lr) - cyclic (min_lr, max_lr, scheduler_steps)
-scheduler="constant"
+scheduler="steps"
 lr=0.01
 swa_lr=0.0256
 # Available optimizers:
@@ -55,6 +55,8 @@ data_augmentation="simepu_segmentation"
 
 normalization="reescale"  # reescale - standardize
 mask_reshape_method="resize"  # padd - resize
+
+generated_overlays=10
 
 # Available criterions:
 # bce - bce_dice - bce_dice_ac - bce_dice_border - bce_dice_border_ce
@@ -70,8 +72,8 @@ python3 -u train.py --gpu $gpu --dataset $dataset --model_name $model --img_size
 --epochs $epochs --swa_start $swa_start --batch_size $batch_size --selected_class $selected_class \
 --scheduler $scheduler --learning_rate $lr --swa_lr $swa_lr --optimizer $optimizer --criterion $criterion \
 --normalization $normalization --weights_criterion $weights_criterion --data_augmentation $data_augmentation \
---output_dir "$output_dir" --metrics iou dice --problem_type $problem_type --mask_reshape_method $mask_reshape_method \
-#--generate_overlays
+--output_dir "$output_dir" --metrics iou --problem_type $problem_type --mask_reshape_method $mask_reshape_method \
+--scheduler_steps 50 80 --generated_overlays $generated_overlays
 
 
 

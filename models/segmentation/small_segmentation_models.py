@@ -33,7 +33,7 @@ class Down(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
-            nn.MaxPool2d(2),
+            nn.MaxPool2d(6),
             DoubleConv(in_channels, out_channels)
         )
 
@@ -140,6 +140,7 @@ class SmallUNet(nn.Module):
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
+        print(x5.shape)
         x = self.up1(x5, x4)
         x = self.up2(x, x3)
         x = self.up3(x, x2)
@@ -170,6 +171,7 @@ class ExtraSmallUNet(nn.Module):
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
+        #print(x4.shape)
         x = self.up1(x4, x3)
         x = self.up2(x, x2)
         x = self.up3(x, x1)
@@ -207,14 +209,14 @@ class NanoUNet(nn.Module):
 
 
 def small_segmentation_model_selector(model_name, n_classes):
-    if model_name == "small_segmentation_nano_unet":
+    if "nano" in model_name:
         model = NanoUNet(n_channels=3, n_classes=n_classes)
-    elif model_name == "small_segmentation_extrasmall_unet":
+    elif "extra_small" in model_name:
         model = ExtraSmallUNet(n_channels=3, n_classes=n_classes)
-    elif model_name == "small_segmentation_small_unet":
+    elif "small" in model_name:
         model = SmallUNet(n_channels=3, n_classes=n_classes)
-    elif model_name == "small_segmentation_unet":
+    elif "unet" in model_name:
         model = UNet(n_channels=3, n_classes=n_classes)
     else:
-        assert False, "Unknown '{}' in small segmentation models!".format(model_name)
+        assert False, f"Unknown model name: '{model_name}'"
     return model.cuda()

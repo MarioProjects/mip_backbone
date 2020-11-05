@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import torch
 from torch.optim.swa_utils import AveragedModel
 
 # ---- My utils ----
@@ -21,7 +22,7 @@ model = model_selector(
     in_channels=train_loader.dataset.img_channels, devices=args.gpu, checkpoint=args.model_checkpoint
 )
 
-swa_model = AveragedModel(model) if args.apply_swa else None
+swa_model = None
 
 criterion, weights_criterion, multiclass_criterion = get_criterion(args.criterion, args.weights_criterion)
 optimizer = get_optimizer(args.optimizer, model, lr=args.learning_rate)
@@ -31,7 +32,7 @@ scheduler = get_scheduler(
     min_lr=args.min_lr, max_lr=args.max_lr, scheduler_steps=args.scheduler_steps
 )
 
-swa_scheduler = get_scheduler("swa", optimizer, max_lr=args.swa_lr) if args.apply_swa else None
+swa_scheduler = get_scheduler("swa", optimizer, max_lr=args.swa_lr) if args.swa_start != -1 else None
 
 train_metrics = MetricsAccumulator(
     args.problem_type, args.metrics, train_loader.dataset.num_classes, average="mean",
@@ -52,24 +53,26 @@ for current_epoch in range(args.epochs):
     )
 
     val_metrics = val_step(
-        val_loader, model, val_metrics, generate_overlays=args.generate_overlays,
+        val_loader, model, val_metrics, generated_overlays=args.generated_overlays,
         overlays_path=f"{args.output_dir}/overlays/epoch_{current_epoch}"
     )
 
     current_lr = get_current_lr(optimizer)
-    log_epoch(current_epoch, current_lr, train_metrics, val_metrics, header)
+    log_epoch((current_epoch+1), current_lr, train_metrics, val_metrics, header)
     create_checkpoint(val_metrics, model, args.model_name, args.output_dir)
 
     val_metrics.save_progress(args.output_dir, identifier="validation_metrics")
     train_metrics.save_progress(args.output_dir, identifier="train_metrics")
 
-    if current_epoch > args.swa_start:
+    if args.swa_start != -1 and current_epoch > args.swa_start:
+        if swa_model is None:
+            swa_model = AveragedModel(model)
         swa_model.update_parameters(model)
         swa_scheduler.step()
     else:
         scheduler_step(optimizer, scheduler, val_metrics, args)
 
-print("Best Validation Results:")
+print("\nBest Validation Results:")
 val_metrics.report_best()
 
 finish_swa(optimizer, swa_model, train_loader, val_loader, args)

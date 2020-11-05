@@ -88,7 +88,7 @@ def get_scheduler(scheduler_name, optimizer, epochs=40, min_lr=0.002, max_lr=0.0
     elif scheduler_name == "constant":
         return torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[9999], gamma=1)
     elif scheduler_name == "swa":
-        return SWALR(optimizer, swa_lr=max_lr, anneal_epochs=int(epochs*0.15))
+        return SWALR(optimizer, swa_lr=max_lr, anneal_epochs=int(epochs * 0.15))
     else:
         assert False, "Unknown scheduler: {}".format(scheduler_name)
 
@@ -99,10 +99,10 @@ def scheduler_step(optimizer, scheduler, metric, args):
     :param optimizer: Optimizer used during training
     :param scheduler: Scheduler instance
     :param metric: Metric to minimize
-    :param args: Training list of arguments with required fields (Bool: apply_swa, String: scheduler_name)
+    :param args: Training list of arguments with required fields
     :return: (void) Apply scheduler step
     """
-    if args.apply_swa:
+    if args.swa_start != -1:
         optimizer.step()
     if args.scheduler == "steps":
         scheduler.step()
@@ -130,7 +130,7 @@ def get_criterion(criterion_type, weights_criterion='default'):
         weights_criterion = [float(i) for i in weights_criterion.split(',')]
 
     if criterion_type == "bce":
-        criterion1 = nn.BCEWithLogitsLoss().cuda()
+        criterion1 = nn.BCEWithLogitsLoss()
         criterion = [criterion1]
         multiclass = [False]
     elif criterion_type == "ce":
@@ -209,7 +209,7 @@ def create_checkpoint(metrics, model, model_name, output_dir):
 
 
 def finish_swa(optimizer, swa_model, train_loader, val_loader, args):
-    if not args.apply_swa:  # If swa was not used, do not perform nothing
+    if args.swa_start == -1:  # If swa was not used, do not perform nothing
         return
 
     optimizer.bn_update(train_loader, swa_model, device='cuda')
@@ -236,7 +236,7 @@ def finish_swa(optimizer, swa_model, train_loader, val_loader, args):
     )
 
     swa_metrics = val_step(
-        val_loader, swa_model, swa_metrics, generate_overlays=args.generate_overlays, overlays_path="results/overlays"
+        val_loader, swa_model, swa_metrics, generated_overlays=args.generated_overlays, overlays_path="results/overlays"
     )
 
     print("SWA validation metrics")
@@ -260,7 +260,7 @@ def calculate_loss(y_true, y_pred, criterion, weights_criterion, multiclass_crit
 
     if num_classes == 1:  # Single class case
         for indx, crit in enumerate(criterion):
-            loss += (weights_criterion[indx] * crit(y_pred.squeeze(1), y_true.float()))
+            loss += weights_criterion[indx] * crit(y_pred, y_true)
 
     else:  # Multiclass case
 
@@ -300,42 +300,37 @@ def train_step(train_loader, model, criterion, weights_criterion, multiclass_cri
     """
     model.train()
     for indx, batch in enumerate(train_loader):
-
-        image = batch["image"].type(torch.float).cuda()
-        label = batch["label"].long()
+        image, label = batch["image"].cuda(), batch["label"].cuda()
+        optimizer.zero_grad()
         prob_preds = model(image)
-
         loss = calculate_loss(
-            label, prob_preds.cpu(), criterion, weights_criterion, multiclass_criterion,
+            label, prob_preds, criterion, weights_criterion, multiclass_criterion,
             num_classes=train_loader.dataset.num_classes
         )
-        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        original_masks = batch["original_mask"].cuda()
-
+        original_masks = batch["original_mask"]
         train_metrics.record(prob_preds, original_masks)
 
     train_metrics.update()
     return train_metrics
 
 
-def val_step(val_loader, model, val_metrics, generate_overlays=False, overlays_path=""):
-    if generate_overlays and overlays_path != "":
+def val_step(val_loader, model, val_metrics, generated_overlays=1, overlays_path=""):
+    if generated_overlays != 1 and overlays_path != "":
         os.makedirs(overlays_path, exist_ok=True)
 
     model.eval()
     with torch.no_grad():
         for sample_indx, batch in enumerate(val_loader):
-
-            image = batch["image"].type(torch.float).cuda()
+            image = batch["image"].cuda()
             prob_preds = model(image)
             original_masks = batch["original_mask"].cuda()
 
             img_id = batch["img_id"][0]
             original_img = batch["original_img"].data.cpu().numpy().squeeze()
-            val_metrics.record(prob_preds, original_masks, original_img, generate_overlays, overlays_path, img_id)
+            val_metrics.record(prob_preds, original_masks, original_img, generated_overlays, overlays_path, img_id)
 
     val_metrics.update()
     return val_metrics

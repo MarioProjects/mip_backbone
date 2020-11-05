@@ -47,9 +47,9 @@ class DRIVEDataset(Dataset):
         np.random.seed(1)
         np.random.shuffle(data)
         if mode == "train":
-            data = data[:int(len(data) * .75)]
+            data = data[:int(len(data) * 85)]
         else:
-            data = data[int(len(data) * .75):]
+            data = data[int(len(data) * .85):]
 
         self.data = data
         self.mode = mode
@@ -110,7 +110,7 @@ class SIMEPUSegmentationDataset(Dataset):
 
         self.base_dir = "data/SIMEPU_Segmentation"
         self.img_channels = 3
-        self.class_to_cat = {0: "Damage"}
+        self.class_to_cat = {1: "Daño"}
         self.include_background = False
         self.num_classes = 1  # background - damage
 
@@ -123,9 +123,9 @@ class SIMEPUSegmentationDataset(Dataset):
         np.random.seed(1)
         np.random.shuffle(data)
         if mode == "train":
-            data = data[:int(len(data) * .75)]
+            data = data[:int(len(data) * .85)]
         else:
-            data = data[int(len(data) * .75):]
+            data = data[int(len(data) * .85):]
 
         self.data = data
         self.mode = mode
@@ -137,12 +137,28 @@ class SIMEPUSegmentationDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
+    def segmentation_collate(self, batch):
+        """
+        Necesitamos un collate ya que las imagenes 'originales' pueden venir con distinto tamaño y no le gusta a Pytorch
+        """
+        img, target, mask, original_img, original_mask, img_path = [], [], [], [], [], []
+        for item in batch:
+            img.append(item[0])
+            target.append(item[1])
+            mask.append(item[2])
+            original_img.append(item[3])
+            original_mask.append(item[4])
+            img_path.append(item[5])
+        img = torch.stack(img)
+        mask = torch.stack(mask)
+        return img, target, mask, original_img, original_mask, img_path
+
     def __getitem__(self, idx):
 
         img_path = self.data[idx].replace("masks", "images")
         image = io.imread(img_path)
 
-        img_id = img_path.split("/")[-1][0:2]
+        img_id = os.path.splitext(img_path)[0].split("/")[-1]
         mask_path = self.data[idx]
         mask = np.where(io.imread(mask_path)[..., 0] > 0.5, 1, 0).astype(np.int32)
 
@@ -150,10 +166,10 @@ class SIMEPUSegmentationDataset(Dataset):
         original_mask = copy.deepcopy(mask)
 
         image, mask = d.apply_augmentations(image, self.transform, self.img_transform, mask)
-        image = d.apply_normalization(image, self.normalization).transpose(2, 0, 1)
-        image = torch.from_numpy(image)
+        image = d.apply_normalization(image, self.normalization)
 
-        mask = torch.from_numpy(mask).long()
+        image = torch.from_numpy(image.transpose(2, 0, 1)).float()
+        mask = torch.from_numpy(np.expand_dims(mask, 0)).float()
 
         if self.mode == "validation":  # 'image', 'original_img', 'original_mask', 'img_id'
             return {"image": image, "original_img": original_image, "original_mask": original_mask, "img_id": img_id}
@@ -164,7 +180,7 @@ class SIMEPUSegmentationDataset(Dataset):
 def dataset_selector(train_aug, train_aug_img, val_aug, args):
     if args.dataset == "DRIVE":
         train_dataset = DRIVEDataset(
-            mode="train", transform=train_aug, img_transform=train_aug_img, add_depth=args.add_depth
+            mode="train", transform=train_aug, img_transform=train_aug_img
         )
 
         val_dataset = DRIVEDataset(
@@ -185,8 +201,8 @@ def dataset_selector(train_aug, train_aug_img, val_aug, args):
             selected_class=args.selected_class, normalization=args.normalization
         )
 
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=False)
-        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, drop_last=False)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, pin_memory=True, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, pin_memory=True, drop_last=False)
 
     else:
         assert False, f"Unknown dataset '{args.dataset}'"

@@ -1,6 +1,7 @@
 import os
 from utils.general import dict2df, convert_multiclass_mask, reshape_masks, plot_save_pred
 import numpy as np
+import torch
 import monai
 
 AVAILABLE_METRICS = ("accuracy", "iou", "dice", "assd", "hausdorff")
@@ -80,7 +81,7 @@ class MetricsAccumulator:
                 self.metrics_helpers["assd_best_value"] = 10e8
         return metric_methods
 
-    def record(self, prediction, target, original_img=None, generate_overlays=False, overlays_path="", img_id=""):
+    def record(self, prediction, target, original_img=None, generated_overlays=-1, overlays_path="", img_id=""):
 
         if self.is_updated:
             for key in self.metrics:
@@ -96,9 +97,11 @@ class MetricsAccumulator:
                 original_mask = target[pred_indx].data.cpu().numpy().astype(np.uint8).squeeze()
 
                 # Calculate metrics resizing prediction to original mask shape
-                pred_mask = convert_multiclass_mask(single_pred.unsqueeze(0)).data.cpu().numpy()
-                pred_mask = reshape_masks(pred_mask.squeeze(0), original_mask.shape, self.mask_reshape_method)
-                pred_mask = pred_mask.astype(np.uint8)
+                #pred_mask = convert_multiclass_mask(single_pred.unsqueeze(0)).data.cpu().numpy()
+                #pred_mask = reshape_masks(pred_mask.squeeze(0), original_mask.shape, self.mask_reshape_method)
+                #pred_mask = pred_mask.astype(np.uint8)
+                pred_mask = reshape_masks(torch.sigmoid(single_pred).squeeze(0).data.cpu().numpy(), original_mask.shape, self.mask_reshape_method)
+                pred_mask = np.where(pred_mask > 0.5, 1, 0).astype(np.int32)
 
                 for current_class in np.unique(np.concatenate((original_mask, pred_mask))):
 
@@ -112,7 +115,7 @@ class MetricsAccumulator:
                     y_true = np.where(original_mask == current_class, 1, 0).astype(np.int32)
                     y_pred = np.where(pred_mask == current_class, 1, 0).astype(np.int32)
 
-                    if generate_overlays:
+                    if generated_overlays > 0 and len(os.listdir(overlays_path)) < generated_overlays:
                         plot_save_pred(original_img, original_mask, pred_mask, overlays_path, img_id)
 
                     for indx, metric in enumerate(self.metric_methods):
@@ -162,7 +165,7 @@ class MetricsAccumulator:
 
     def report_best(self):
         for key in self.metrics:
-            print("\n\t- {}: {}".format(key, self.metrics_helpers[f"{key}_best_value"]))
+            print("\t- {}: {}".format(key, self.metrics_helpers[f"{key}_best_value"]))
 
     def mean_value(self, metric_name):
         if self.average != "none":
