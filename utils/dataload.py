@@ -8,7 +8,19 @@ import copy
 from sklearn.model_selection import GroupKFold
 from torch.utils.data import Dataset, DataLoader
 from utils.data_augmentation import common_test_augmentation
+import pydicom
+from PIL import Image
 from utils.datasets import *
+
+
+def load_tif(tif_path):
+    return np.array(Image.open(tif_path))
+
+
+def read_dicom(dcm_path):
+    f = pydicom.read_file(dcm_path)
+    img = f.pixel_array.astype('int16')
+    return img
 
 
 def load_nii(img_path):

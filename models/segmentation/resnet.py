@@ -204,12 +204,9 @@ class ResUnetv4(nn.Module):
             assert False, "Unknown model: {}".format(model_version)
 
         if pretrained:
-            assert False, "No pretrained models allowed!"
-            """
             print("\n--- Frosted pretrained backbone! ---")
             for param in self.resnet.parameters():  # Frost model
                 param.requires_grad = False
-            """
 
         self.resnet.conv1 = torch.nn.Conv1d(in_channels, 64, (7, 7), (2, 2), (3, 3), bias=False)
 
@@ -277,13 +274,11 @@ class ResUnetv4(nn.Module):
 
 def resnet_model_selector(model_name, num_classes=1, classification=False, in_channels=3):
     if "resnet" in model_name and "unet" in model_name:
-        if "scratch" in model_name:
-            return ResUnetv4(
-                model_name, pretrained=False, num_classes=num_classes,
-                classification=classification, in_channels=in_channels
-            ).cuda()
-        else:
-            assert False, "Unknown model name (cannot use pretrained models on Imagenet!): {}".format(model_name)
+
+        return ResUnetv4(
+            model_name, pretrained=True if "scratch" in model_name else False, num_classes=num_classes,
+            classification=classification, in_channels=in_channels
+        ).cuda()
 
     else:
         assert False, "Unknown model selected!"

@@ -94,7 +94,11 @@ class MetricsAccumulator:
             """
 
             for pred_indx, single_pred in enumerate(prediction):
-                original_mask = target[pred_indx].data.cpu().numpy().astype(np.uint8).squeeze()
+
+                if torch.is_tensor(target[pred_indx]):
+                    original_mask = target[pred_indx].data.cpu().numpy().astype(np.uint8).squeeze()
+                else:  # numpy array
+                    original_mask = target[pred_indx]
 
                 # Calculate metrics resizing prediction to original mask shape
                 #pred_mask = convert_multiclass_mask(single_pred.unsqueeze(0)).data.cpu().numpy()

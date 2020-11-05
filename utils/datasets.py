@@ -3,16 +3,11 @@ import torch
 import os
 import numpy as np
 from torch.utils.data import Dataset
-from PIL import Image
 from skimage import io
 import albumentations
 import copy
 
 import utils.dataload as d
-
-
-def load_tif(tif_path):
-    return np.array(Image.open(tif_path))
 
 
 class DRIVEDataset(Dataset):
@@ -64,13 +59,13 @@ class DRIVEDataset(Dataset):
     def __getitem__(self, idx):
 
         img_path = self.data[idx]
-        image = load_tif(img_path)
+        image = d.load_tif(img_path)
 
         img_id = img_path.split("/")[-1][0:2]
         mask_path = os.path.join(
             self.base_dir, "training", "1st_manual", img_id + "_manual1.gif"
         )
-        mask = load_tif(mask_path)
+        mask = d.load_tif(mask_path)
         mask = np.where(mask > 0, 1, 0).astype(mask.dtype)  # Vessel values are 255, reconvert to 1
 
         original_image = copy.deepcopy(image)
@@ -137,22 +132,6 @@ class SIMEPUSegmentationDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def segmentation_collate(self, batch):
-        """
-        Necesitamos un collate ya que las imagenes 'originales' pueden venir con distinto tamaño y no le gusta a Pytorch
-        """
-        img, target, mask, original_img, original_mask, img_path = [], [], [], [], [], []
-        for item in batch:
-            img.append(item[0])
-            target.append(item[1])
-            mask.append(item[2])
-            original_img.append(item[3])
-            original_mask.append(item[4])
-            img_path.append(item[5])
-        img = torch.stack(img)
-        mask = torch.stack(mask)
-        return img, target, mask, original_img, original_mask, img_path
-
     def __getitem__(self, idx):
 
         img_path = self.data[idx].replace("masks", "images")
@@ -169,6 +148,104 @@ class SIMEPUSegmentationDataset(Dataset):
         image = d.apply_normalization(image, self.normalization)
 
         image = torch.from_numpy(image.transpose(2, 0, 1)).float()
+        mask = torch.from_numpy(np.expand_dims(mask, 0)).float()
+
+        if self.mode == "validation":  # 'image', 'original_img', 'original_mask', 'img_id'
+            return {"image": image, "original_img": original_image, "original_mask": original_mask, "img_id": img_id}
+
+        return {"image": image, "label": mask, "original_mask": original_mask}
+
+
+class LVSC2Dataset(Dataset):
+    """
+    Dataset for Digital Retinal Images for Vessel Extraction (DRIVE) Challenge.
+    https://drive.grand-challenge.org/
+    """
+
+    def __init__(self, mode, transform, img_transform, add_depth=True, normalization="normalize"):
+        """
+        :param mode: (string) Dataset mode in ["train", "validation"]
+        :param transform: (list) List of albumentations applied to image and mask
+        :param img_transform: (list) List of albumentations applied to image only
+        :param normalization: (str) Normalization mode. One of 'reescale', 'standardize', 'global_standardize'
+        """
+
+        if mode not in ["train", "validation"]:
+            assert False, "Unknown mode '{}'".format(mode)
+
+        self.base_dir = "data/LVSC"
+        self.img_channels = 3
+        self.class_to_cat = {1: "LV"}
+        self.include_background = False
+        self.num_classes = 1  # LV
+
+        data = []
+        directory = os.path.join(self.base_dir, "Training")
+        for subdir, dirs, files in os.walk(directory):
+            for file in files:
+                entry = os.path.join(subdir, file)
+                if "_SA" in entry and entry.endswith(".dcm"):
+                    data.append(entry)
+
+        np.random.seed(1)
+        np.random.shuffle(data)
+        if mode == "train":
+            data = data[:int(len(data) * .85)]
+        else:
+            data = data[int(len(data) * .85):]
+
+        self.data = data
+        self.mode = mode
+        self.normalization = normalization
+
+        self.transform = albumentations.Compose(transform)
+        self.img_transform = albumentations.Compose(img_transform)
+        self.add_depth = add_depth
+
+    def __len__(self):
+        return len(self.data)
+
+    def custom_collate(self, batch):
+        """
+
+        Args:
+            batch: list of dataset items (from __getitem__). In this case batch is a list of dicts with
+                   key image, and depending of validation or train different keys
+
+        Returns:
+
+        """
+        # We have to modify "original_mask" as has different shapes
+        batch_keys = list(batch[0].keys())
+        res = {bkey: [] for bkey in batch_keys}
+        for belement in batch:
+            for bkey in batch_keys:
+                res[bkey].append(belement[bkey])
+
+        for bkey in batch_keys:
+            if bkey == "original_mask":
+                continue  # We wont stack over original_mask
+            res[bkey] = torch.stack(res[bkey])
+
+        return res
+
+    def __getitem__(self, idx):
+
+        img_path = self.data[idx]
+        image = d.read_dicom(img_path)
+
+        img_id = os.path.splitext(img_path)[0].split("/")[-1]
+        mask_path = self.data[idx].replace(".dcm", ".png")
+        mask = io.imread(mask_path, as_gray=True).astype('int').astype(np.uint8)
+
+        original_image = copy.deepcopy(image)
+        original_mask = copy.deepcopy(mask)
+
+        image, mask = d.apply_augmentations(image, self.transform, self.img_transform, mask)
+        image = d.apply_normalization(image, self.normalization)
+        image = torch.from_numpy(np.expand_dims(image, axis=0))
+
+        image = d.add_depth_channels(image)
         mask = torch.from_numpy(np.expand_dims(mask, 0)).float()
 
         if self.mode == "validation":  # 'image', 'original_img', 'original_mask', 'img_id'
@@ -203,6 +280,26 @@ def dataset_selector(train_aug, train_aug_img, val_aug, args):
 
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, pin_memory=True, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, pin_memory=True, drop_last=False)
+
+    elif args.dataset == "LVSC2D":
+        train_dataset = LVSC2Dataset(
+            mode="train", transform=train_aug, img_transform=train_aug_img,
+            add_depth=args.add_depth, normalization=args.normalization
+        )
+
+        val_dataset = LVSC2Dataset(
+            mode="validation", transform=val_aug, img_transform=[],
+            add_depth=args.add_depth, normalization=args.normalization
+        )
+
+        train_loader = DataLoader(
+            train_dataset, batch_size=args.batch_size, pin_memory=True,
+            shuffle=True, collate_fn=train_dataset.custom_collate
+        )
+        val_loader = DataLoader(
+            val_dataset, batch_size=1, shuffle=False, pin_memory=True,
+            drop_last=False, collate_fn=val_dataset.custom_collate
+        )
 
     else:
         assert False, f"Unknown dataset '{args.dataset}'"
