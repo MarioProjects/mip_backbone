@@ -326,10 +326,16 @@ def val_step(val_loader, model, val_metrics, generated_overlays=1, overlays_path
         for sample_indx, batch in enumerate(val_loader):
             image = batch["image"].cuda()
             prob_preds = model(image)
-            original_masks = batch["original_mask"].cuda()
+            original_masks = batch["original_mask"]
 
             img_id = batch["img_id"][0]
-            original_img = batch["original_img"].data.cpu().numpy().squeeze()
+
+            if torch.is_tensor(batch["original_img"]):
+                original_img = batch["original_img"].data.cpu().numpy().squeeze()
+            else:  # numpy array
+                original_img = np.squeeze(batch["original_img"], axis=0)
+
+            #original_img = batch["original_img"].data.cpu().numpy().squeeze()
             val_metrics.record(prob_preds, original_masks, original_img, generated_overlays, overlays_path, img_id)
 
     val_metrics.update()

@@ -223,8 +223,8 @@ class LVSC2Dataset(Dataset):
                 res[bkey].append(belement[bkey])
 
         for bkey in batch_keys:
-            if bkey == "original_mask":
-                continue  # We wont stack over original_mask
+            if bkey == "original_mask" or bkey == "original_img" or bkey == "img_id":
+                continue  # We wont stack over original_mask...
             res[bkey] = torch.stack(res[bkey])
 
         return res
