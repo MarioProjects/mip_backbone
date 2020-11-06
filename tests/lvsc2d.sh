@@ -70,7 +70,7 @@ python3 -u train.py --gpu $gpu --dataset $dataset --model_name $model --img_size
 --epochs $epochs --swa_start $swa_start --batch_size $batch_size --defrost_epoch $defrost_epoch \
 --scheduler $scheduler --learning_rate $lr --swa_lr $swa_lr --optimizer $optimizer --criterion $criterion \
 --normalization $normalization --weights_criterion "$weights_criterion" --data_augmentation $data_augmentation \
---output_dir "$output_dir" --metrics iou --problem_type $problem_type --mask_reshape_method $mask_reshape_method \
+--output_dir "$output_dir" --metrics iou dice --problem_type $problem_type --mask_reshape_method $mask_reshape_method \
 --scheduler_steps 45 65 --generated_overlays $generated_overlays --add_depth
 
 

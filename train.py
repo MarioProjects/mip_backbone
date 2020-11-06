@@ -58,7 +58,6 @@ for current_epoch in range(args.epochs):
 
     current_lr = get_current_lr(optimizer)
     log_epoch((current_epoch+1), current_lr, train_metrics, val_metrics, header)
-    create_checkpoint(val_metrics, model, args.model_name, args.output_dir)
 
     val_metrics.save_progress(args.output_dir, identifier="validation_metrics")
     train_metrics.save_progress(args.output_dir, identifier="train_metrics")
@@ -69,6 +68,8 @@ for current_epoch in range(args.epochs):
         swa_model.update_parameters(model)
         swa_scheduler.step()
     else:
+        # Only save checkpoints when not applying SWA -> only want save last model using SWA
+        create_checkpoint(val_metrics, model, args.model_name, args.output_dir)
         scheduler_step(optimizer, scheduler, val_metrics, args)
 
 print("\nBest Validation Results:")
