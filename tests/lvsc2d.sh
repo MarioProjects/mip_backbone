@@ -51,7 +51,7 @@ optimizer="adam"
 # "scale" - "optical_distortion" - "coarse_dropout" or "cutout" - "downscale"
 data_augmentation="lvsc2d"
 
-normalization="reescale"  # reescale - standardize
+normalization="standardize"  # reescale - standardize
 mask_reshape_method="padd"  # padd - resize
 
 generated_overlays=10

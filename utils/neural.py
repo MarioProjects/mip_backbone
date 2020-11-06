@@ -310,8 +310,7 @@ def train_step(train_loader, model, criterion, weights_criterion, multiclass_cri
         loss.backward()
         optimizer.step()
 
-        original_masks = batch["original_mask"]
-        train_metrics.record(prob_preds, original_masks)
+        train_metrics.record(prob_preds, label)
 
     train_metrics.update()
     return train_metrics

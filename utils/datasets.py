@@ -205,7 +205,8 @@ class LVSC2Dataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def custom_collate(self, batch):
+    @staticmethod
+    def custom_collate(batch):
         """
 
         Args:
@@ -236,7 +237,7 @@ class LVSC2Dataset(Dataset):
 
         img_id = os.path.splitext(img_path)[0].split("/")[-1]
         mask_path = self.data[idx].replace(".dcm", ".png")
-        mask = io.imread(mask_path, as_gray=True).astype('int').astype(np.uint8)
+        mask = np.where(io.imread(mask_path)[..., 0] > 0.5, 1, 0).astype(np.int32)
 
         original_image = copy.deepcopy(image)
         original_mask = copy.deepcopy(mask)

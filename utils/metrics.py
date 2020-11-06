@@ -101,11 +101,16 @@ class MetricsAccumulator:
                     original_mask = target[pred_indx]
 
                 # Calculate metrics resizing prediction to original mask shape
-                #pred_mask = convert_multiclass_mask(single_pred.unsqueeze(0)).data.cpu().numpy()
-                #pred_mask = reshape_masks(pred_mask.squeeze(0), original_mask.shape, self.mask_reshape_method)
-                #pred_mask = pred_mask.astype(np.uint8)
-                pred_mask = reshape_masks(torch.sigmoid(single_pred).squeeze(0).data.cpu().numpy(), original_mask.shape, self.mask_reshape_method)
-                pred_mask = np.where(pred_mask > 0.5, 1, 0).astype(np.int32)
+                if not self.include_background and self.num_classes == 1:  # Single class -> sigmoid
+                    pred_mask = reshape_masks(
+                        torch.sigmoid(single_pred).squeeze(0).data.cpu().numpy(),
+                        original_mask.shape, self.mask_reshape_method
+                    )
+                    pred_mask = np.where(pred_mask > 0.5, 1, 0).astype(np.int32)
+                else:
+                    pred_mask = convert_multiclass_mask(single_pred.unsqueeze(0)).data.cpu().numpy()
+                    pred_mask = reshape_masks(pred_mask.squeeze(0), original_mask.shape, self.mask_reshape_method)
+                    pred_mask = pred_mask.astype(np.uint8)
 
                 for current_class in np.unique(np.concatenate((original_mask, pred_mask))):
 
