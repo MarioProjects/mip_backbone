@@ -10,7 +10,7 @@ then
       'https://docs.google.com/uc?export=download&id=1tPw_phod7s1T_7cvVhrsHH25l47mifOI' \
       -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1tPw_phod7s1T_7cvVhrsHH25l47mifOI" \
       -O simepu_segmentation.tar.gz && rm -rf /tmp/cookies.txt
-    mkdir data
+    mkdir -p data
     tar -zxf simepu_segmentation.tar.gz  -C data/
     rm simepu_segmentation.tar.gz
     echo "Done!"

@@ -10,7 +10,7 @@ then
       'https://docs.google.com/uc?export=download&id=1zdO29XJ-368VfXGYiLGehSFnVp5MW4m3' \
       -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1zdO29XJ-368VfXGYiLGehSFnVp5MW4m3" \
       -O lv_lvsc.tar.gz && rm -rf /tmp/cookies.txt
-    mkdir data
+    mkdir -p data
     tar -zxf lv_lvsc.tar.gz  -C data/
     rm lv_lvsc.tar.gz
     echo "Done!"

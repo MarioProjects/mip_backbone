@@ -10,7 +10,7 @@ then
       'https://docs.google.com/uc?export=download&id=1kEMIClDQt34s48RdZBZbf4ET8jgbL5tS' \
       -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1kEMIClDQt34s48RdZBZbf4ET8jgbL5tS" \
       -O drive_data.tar.gz && rm -rf /tmp/cookies.txt
-    mkdir data
+    mkdir -p data
     tar -zxf drive_data.tar.gz  -C data/
     rm drive_data.tar.gz
     echo "Done!"
