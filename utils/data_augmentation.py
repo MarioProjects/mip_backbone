@@ -49,6 +49,9 @@ def data_augmentation_selector(da_policy, img_size, crop_size, mask_reshape_meth
     elif da_policy == "lvsc2d":
         return lvsc2d_segmentation_da(img_size, mask_reshape_method)
 
+    elif da_policy == "acdc172d":
+        return lvsc2d_segmentation_da(img_size, mask_reshape_method)
+
     assert False, "Unknown Data Augmentation Policy: {}".format(da_policy)
 
 

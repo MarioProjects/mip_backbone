@@ -1,4 +1,4 @@
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 import torch
 import os
 import numpy as np
@@ -158,8 +158,7 @@ class SIMEPUSegmentationDataset(Dataset):
 
 class LVSC2Dataset(Dataset):
     """
-    Dataset for Digital Retinal Images for Vessel Extraction (DRIVE) Challenge.
-    https://drive.grand-challenge.org/
+    2D Dataset for LVSC Challenge.
     """
 
     def __init__(self, mode, transform, img_transform, add_depth=True, normalization="normalize"):
@@ -246,7 +245,112 @@ class LVSC2Dataset(Dataset):
         image = d.apply_normalization(image, self.normalization)
         image = torch.from_numpy(np.expand_dims(image, axis=0))
 
-        image = d.add_depth_channels(image)
+        if self.add_depth:
+            image = d.add_depth_channels(image)
+        mask = torch.from_numpy(np.expand_dims(mask, 0)).float()
+
+        if self.mode == "validation":  # 'image', 'original_img', 'original_mask', 'img_id'
+            return {"image": image, "original_img": original_image, "original_mask": original_mask, "img_id": img_id}
+
+        return {"image": image, "label": mask, "original_mask": original_mask}
+
+
+class ACDC172Dataset(Dataset):
+    """
+    2D Dataset for ACDC Challenge.
+    https://acdc.creatis.insa-lyon.fr/
+    """
+
+    def __init__(self, mode, transform, img_transform, add_depth=True, normalization="normalize"):
+        """
+        :param mode: (string) Dataset mode in ["train", "validation"]
+        :param transform: (list) List of albumentations applied to image and mask
+        :param img_transform: (list) List of albumentations applied to image only
+        :param normalization: (str) Normalization mode. One of 'reescale', 'standardize', 'global_standardize'
+        """
+
+        if mode not in ["train", "validation"]:
+            assert False, "Unknown mode '{}'".format(mode)
+
+        self.base_dir = "data/AC17"
+        self.img_channels = 3
+        self.class_to_cat = {1: "RV", 2: "MYO", 3: "LV", 4: "Mean"}
+        self.num_classes = 4
+        self.include_background = False
+
+        data = []
+        for subdir, dirs, files in os.walk(self.base_dir):
+            for file in files:
+                entry = os.path.join(subdir, file)
+                if "_gt" in entry and not ".nii" in entry and not ".nii.gz" in entry:
+                    data.append(entry)
+
+        if len(data) == 0:
+            assert False, 'You have to transform volumes to 2D slices: ' \
+                          'python tools/nifti2slices.py --data_path "data/AC17"'
+
+        np.random.seed(1)
+        np.random.shuffle(data)
+        if mode == "train":
+            data = data[:int(len(data) * .85)]
+        else:
+            data = data[int(len(data) * .85):]
+
+        self.data = data
+        self.mode = mode
+        self.normalization = normalization
+
+        self.transform = albumentations.Compose(transform)
+        self.img_transform = albumentations.Compose(img_transform)
+        self.add_depth = add_depth
+
+    def __len__(self):
+        return len(self.data)
+
+    @staticmethod
+    def custom_collate(batch):
+        """
+
+        Args:
+            batch: list of dataset items (from __getitem__). In this case batch is a list of dicts with
+                   key image, and depending of validation or train different keys
+
+        Returns:
+
+        """
+        # We have to modify "original_mask" as has different shapes
+        batch_keys = list(batch[0].keys())
+        res = {bkey: [] for bkey in batch_keys}
+        for belement in batch:
+            for bkey in batch_keys:
+                res[bkey].append(belement[bkey])
+
+        for bkey in batch_keys:
+            if bkey == "original_mask" or bkey == "original_img" or bkey == "img_id":
+                continue  # We wont stack over original_mask...
+            res[bkey] = torch.stack(res[bkey])
+
+        return res
+
+    def __getitem__(self, idx):
+
+        img_path = self.data[idx].replace("_gt", "")
+        image = np.load(img_path)
+
+        mask_path = self.data[idx]
+        mask = np.load(mask_path)
+
+        img_id = os.path.splitext(img_path)[0].split("/")[-1]
+
+        original_image = copy.deepcopy(image)
+        original_mask = copy.deepcopy(mask)
+
+        image, mask = d.apply_augmentations(image, self.transform, self.img_transform, mask)
+        image = d.apply_normalization(image, self.normalization)
+        image = torch.from_numpy(np.expand_dims(image, axis=0))
+
+        if self.add_depth:
+            image = d.add_depth_channels(image)
         mask = torch.from_numpy(np.expand_dims(mask, 0)).float()
 
         if self.mode == "validation":  # 'image', 'original_img', 'original_mask', 'img_id'
@@ -298,7 +402,27 @@ def dataset_selector(train_aug, train_aug_img, val_aug, args):
             shuffle=True, collate_fn=train_dataset.custom_collate
         )
         val_loader = DataLoader(
-            val_dataset, batch_size=1, shuffle=False, pin_memory=True,
+            val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True,
+            drop_last=False, collate_fn=val_dataset.custom_collate
+        )
+
+    elif args.dataset == "ACDC172D":
+        train_dataset = ACDC172Dataset(
+            mode="train", transform=train_aug, img_transform=train_aug_img,
+            add_depth=args.add_depth, normalization=args.normalization
+        )
+
+        val_dataset = ACDC172Dataset(
+            mode="validation", transform=val_aug, img_transform=[],
+            add_depth=args.add_depth, normalization=args.normalization
+        )
+
+        train_loader = DataLoader(
+            train_dataset, batch_size=args.batch_size, pin_memory=True,
+            shuffle=True, collate_fn=train_dataset.custom_collate
+        )
+        val_loader = DataLoader(
+            val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True,
             drop_last=False, collate_fn=val_dataset.custom_collate
         )
 

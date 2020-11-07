@@ -42,7 +42,7 @@ class MetricsAccumulator:
 
         self.include_background = include_background
         self.metric_list = metric_list
-        self.num_classes = num_classes
+        self.num_classes = (num_classes-1) if num_classes > 1 and not include_background else num_classes
         self.metric_methods_args = {}
         self.metrics_helpers = {}
         self.metric_methods = self.__metrics_init__()
@@ -124,13 +124,13 @@ class MetricsAccumulator:
                     y_true = np.where(original_mask == current_class, 1, 0).astype(np.int32)
                     y_pred = np.where(pred_mask == current_class, 1, 0).astype(np.int32)
 
-                    if generated_overlays > 0 and len(os.listdir(overlays_path)) < generated_overlays:
-                        plot_save_pred(original_img, original_mask, pred_mask, overlays_path, img_id)
-
                     for indx, metric in enumerate(self.metric_methods):
                         self.metrics[self.metric_list[indx]][-1][
                             current_class if self.include_background else (current_class - 1)] += [
                             metric(y_true, y_pred, **self.metric_methods_args[self.metric_list[indx]])]
+
+                if generated_overlays > 0 and len(os.listdir(overlays_path)) < generated_overlays:
+                    plot_save_pred(original_img[pred_indx], original_mask, pred_mask, overlays_path, img_id)
 
         elif self.problem_type == "classification":
             assert False, f"To be done record for classification"

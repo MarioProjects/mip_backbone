@@ -243,7 +243,7 @@ def finish_swa(optimizer, swa_model, train_loader, val_loader, args):
     swa_metrics.report_best()
 
 
-def calculate_loss(y_true, y_pred, criterion, weights_criterion, multiclass_criterion, num_classes):
+def calculate_loss(y_true, y_pred, criterion, weights_criterion, multiclass_criterion, num_classes, include_background):
     """
 
     Args:
@@ -271,11 +271,11 @@ def calculate_loss(y_true, y_pred, criterion, weights_criterion, multiclass_crit
 
         singleclass_indices = [i for i, x in enumerate(multiclass_criterion) if not x]
         # Single class criterions => calculate criterions per class
-        for current_class in y_true.unique():
-            tmp_loss, tmp_mask = 0, 1 - (y_true != current_class) * 1.0
+        for current_class in np.unique(y_true.cpu().numpy()):
 
+            tmp_loss, tmp_mask = 0, 1 - (y_true != current_class) * 1.0
             for indx in singleclass_indices:  # Acumulamos todos los losses para una clase
-                tmp_loss += (weights_criterion[indx] * criterion[indx](y_pred[:, current_class, :, :], tmp_mask))
+                tmp_loss += (weights_criterion[indx] * criterion[indx](y_pred[:, int(current_class), :, :], tmp_mask.squeeze(1)))
 
             # Average over the number of classes
             loss += (tmp_loss / len(y_true.unique()))
@@ -305,12 +305,13 @@ def train_step(train_loader, model, criterion, weights_criterion, multiclass_cri
         prob_preds = model(image)
         loss = calculate_loss(
             label, prob_preds, criterion, weights_criterion, multiclass_criterion,
-            num_classes=train_loader.dataset.num_classes
+            train_loader.dataset.num_classes, train_loader.dataset.include_background
         )
         loss.backward()
         optimizer.step()
 
         train_metrics.record(prob_preds, label)
+        break
 
     train_metrics.update()
     return train_metrics
@@ -330,11 +331,10 @@ def val_step(val_loader, model, val_metrics, generated_overlays=1, overlays_path
             img_id = batch["img_id"][0]
 
             if torch.is_tensor(batch["original_img"]):
-                original_img = batch["original_img"].data.cpu().numpy().squeeze()
-            else:  # numpy array
-                original_img = np.squeeze(batch["original_img"], axis=0)
+                original_img = batch["original_img"].data.cpu().numpy()
+            else:  # list of numpy array (generally when different sizes of original imgs)
+                original_img = batch["original_img"]
 
-            #original_img = batch["original_img"].data.cpu().numpy().squeeze()
             val_metrics.record(prob_preds, original_masks, original_img, generated_overlays, overlays_path, img_id)
 
     val_metrics.update()
