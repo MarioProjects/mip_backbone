@@ -5,6 +5,9 @@ import math
 import numpy as np
 import pandas as pd
 import cv2
+import requests
+import json
+import socket
 
 
 def current_time():
@@ -112,3 +115,23 @@ def plot_save_pred(original_img, original_mask, pred_mask, save_dir, img_id):
     )
     plt.savefig(pred_filename, dpi=200, pad_inches=0.2, bbox_inches='tight')
     plt.close()
+
+
+def slack_message(message, channel, blocks=None):
+    # https://keestalkstech.com/2019/10/simple-python-code-to-send-message-to-slack-channel-without-packages/
+    if os.environ.get('SLACK_TOKEN') is not None:
+        token = os.environ.get('SLACK_TOKEN')
+    else:
+        assert False, "Please set the environment variable SLACK_TOKEN if you want Slack notifications."
+    if channel[0] != "#":
+        channel = f"#{channel}"
+    message = "[{}] {}".format(socket.gethostname().upper(), message)
+    return requests.post('https://slack.com/api/chat.postMessage', {
+        'token': token,
+        'channel': channel,
+        'text': message,
+        # https://slackmojis.com/
+        'icon_url': "https://emojis.slackmojis.com/emojis/images/1453406830/264/success-kid.png?1453406830",
+        'username': "Experiments Bot",
+        'blocks': json.dumps(blocks) if blocks else None
+    }).json()

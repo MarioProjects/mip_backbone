@@ -57,12 +57,12 @@ for current_epoch in range(args.epochs):
     )
 
     current_lr = get_current_lr(optimizer)
-    log_epoch((current_epoch+1), current_lr, train_metrics, val_metrics, header)
+    log_epoch((current_epoch + 1), current_lr, train_metrics, val_metrics, header)
 
     val_metrics.save_progress(args.output_dir, identifier="validation_metrics")
     train_metrics.save_progress(args.output_dir, identifier="train_metrics")
 
-    if args.swa_start != -1 and (current_epoch+1) >= args.swa_start:
+    if args.swa_start != -1 and (current_epoch + 1) >= args.swa_start:
         if swa_model is None:
             print("\n------------------------------- START SWA -------------------------------\n")
             swa_model = AveragedModel(model)
@@ -77,3 +77,6 @@ print("\nBest Validation Results:")
 val_metrics.report_best()
 
 finish_swa(swa_model, train_loader, val_loader, args)
+
+if args.notify:
+    slack_message(message=f"{args.dataset.upper()} experiments finished!", channel="experiments")

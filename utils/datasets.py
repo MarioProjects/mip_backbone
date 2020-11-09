@@ -29,9 +29,9 @@ class DRIVEDataset(Dataset):
 
         self.base_dir = "data/DRIVE"
         self.img_channels = 3
-        self.class_to_cat = {0: "Background", 1: "Vessel"}
-        self.include_background = True
-        self.num_classes = 2  # background - vessel
+        self.class_to_cat = {1: "Vessel"}
+        self.include_background = False
+        self.num_classes = 1  # background - vessel
 
         data = []
         directory = os.path.join(self.base_dir, "training", "images")
@@ -73,9 +73,9 @@ class DRIVEDataset(Dataset):
 
         image, mask = d.apply_augmentations(image, self.transform, self.img_transform, mask)
         image = d.apply_normalization(image, self.normalization).transpose(2, 0, 1)
-        image = torch.from_numpy(image)
+        image = torch.from_numpy(image).float()
 
-        mask = torch.from_numpy(mask).long()
+        mask = torch.from_numpy(np.expand_dims(mask, 0)).float()
 
         if self.mode == "validation":  # 'image', 'original_img', 'original_mask', 'img_id'
             return {"image": image, "original_img": original_image, "original_mask": original_mask, "img_id": img_id}
@@ -362,7 +362,7 @@ class ACDC172Dataset(Dataset):
 def dataset_selector(train_aug, train_aug_img, val_aug, args):
     if args.dataset == "DRIVE":
         train_dataset = DRIVEDataset(
-            mode="train", transform=train_aug, img_transform=train_aug_img
+            mode="train", transform=train_aug, img_transform=train_aug_img, normalization=args.normalization
         )
 
         val_dataset = DRIVEDataset(
