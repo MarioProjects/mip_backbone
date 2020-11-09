@@ -62,8 +62,9 @@ for current_epoch in range(args.epochs):
     val_metrics.save_progress(args.output_dir, identifier="validation_metrics")
     train_metrics.save_progress(args.output_dir, identifier="train_metrics")
 
-    if args.swa_start != -1 and current_epoch > args.swa_start:
+    if args.swa_start != -1 and (current_epoch+1) >= args.swa_start:
         if swa_model is None:
+            print("\n------------------------------- START SWA -------------------------------\n")
             swa_model = AveragedModel(model)
         swa_model.update_parameters(model)
         swa_scheduler.step()
@@ -75,4 +76,4 @@ for current_epoch in range(args.epochs):
 print("\nBest Validation Results:")
 val_metrics.report_best()
 
-finish_swa(optimizer, swa_model, train_loader, val_loader, args)
+finish_swa(swa_model, train_loader, val_loader, args)

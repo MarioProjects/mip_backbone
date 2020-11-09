@@ -27,7 +27,11 @@ def check_defrost(model, defrosted, current_epoch, defrost_epoch):
     Returns:
 
     """
-    if defrost_epoch != -1 and current_epoch >= defrost_epoch and not defrosted:
+    if defrost_epoch == 0 and not defrosted:
+        print("\n---------- Unfreeze Model Weights ----------")
+        defrost_model(model)
+        defrosted = True
+    elif defrost_epoch != -1 and current_epoch >= defrost_epoch and not defrosted:
         print("\n---------- Unfreeze Model Weights ----------")
         defrost_model(model)
         defrosted = True
@@ -208,42 +212,7 @@ def create_checkpoint(metrics, model, model_name, output_dir):
     torch.save(model.state_dict(), output_dir + "/model_" + model_name + "_last.pt")
 
 
-def finish_swa(optimizer, swa_model, train_loader, val_loader, args):
-    if args.swa_start == -1:  # If swa was not used, do not perform nothing
-        return
-
-    optimizer.bn_update(train_loader, swa_model, device='cuda')
-
-    """
-    update_bn() assumes that each batch in the dataloader loader is either a tensors or a list of tensors 
-    where the first element is the tensor that the network swa_model should be applied to. 
-    If your dataloader has a different structure, you can update the batch normalization statistics of the swa_model
-    by doing a forward pass with the swa_model on each element of the dataset.
-    """
-    for indx, batch in enumerate(train_loader):
-        image = batch["image"].type(torch.float).cuda()
-        _ = swa_model(image)
-
-    swa_epochs = args.epochs - args.swa_start
-
-    torch.save(
-        swa_model.state_dict(),
-        os.path.join(args.output_dir, f"model_{args.model_name}_{swa_epochs}swa_lr{args.swa_lr}.pt")
-    )
-
-    swa_metrics = MetricsAccumulator(
-        args.problem_type, args.metrics, args.num_classes, include_background=False, average="mean"
-    )
-
-    swa_metrics = val_step(
-        val_loader, swa_model, swa_metrics, generated_overlays=args.generated_overlays, overlays_path="results/overlays"
-    )
-
-    print("SWA validation metrics")
-    swa_metrics.report_best()
-
-
-def calculate_loss(y_true, y_pred, criterion, weights_criterion, multiclass_criterion, num_classes, include_background):
+def calculate_loss(y_true, y_pred, criterion, weights_criterion, multiclass_criterion, num_classes):
     """
 
     Args:
@@ -275,7 +244,8 @@ def calculate_loss(y_true, y_pred, criterion, weights_criterion, multiclass_crit
 
             tmp_loss, tmp_mask = 0, 1 - (y_true != current_class) * 1.0
             for indx in singleclass_indices:  # Acumulamos todos los losses para una clase
-                tmp_loss += (weights_criterion[indx] * criterion[indx](y_pred[:, int(current_class), :, :], tmp_mask.squeeze(1)))
+                tmp_loss += (weights_criterion[indx] * criterion[indx](y_pred[:, int(current_class), :, :],
+                                                                       tmp_mask.squeeze(1)))
 
             # Average over the number of classes
             loss += (tmp_loss / len(y_true.unique()))
@@ -305,13 +275,12 @@ def train_step(train_loader, model, criterion, weights_criterion, multiclass_cri
         prob_preds = model(image)
         loss = calculate_loss(
             label, prob_preds, criterion, weights_criterion, multiclass_criterion,
-            train_loader.dataset.num_classes, train_loader.dataset.include_background
+            train_loader.dataset.num_classes
         )
         loss.backward()
         optimizer.step()
 
         train_metrics.record(prob_preds, label)
-        break
 
     train_metrics.update()
     return train_metrics
@@ -339,3 +308,42 @@ def val_step(val_loader, model, val_metrics, generated_overlays=1, overlays_path
 
     val_metrics.update()
     return val_metrics
+
+
+def finish_swa(swa_model, train_loader, val_loader, args):
+    if args.swa_start == -1:  # If swa was not used, do not perform nothing
+        return
+
+    print("\nFinalizing SWA...")
+    """
+    update_bn() assumes that each batch in the dataloader loader is either a tensors or a list of tensors 
+    where the first element is the tensor that the network swa_model should be applied to. 
+    If your dataloader has a different structure, you can update the batch normalization statistics of the swa_model
+    by doing a forward pass with the swa_model on each element of the dataset.
+    """
+    # torch.optim.swa_utils.update_bn(train_loader, swa_model)
+    swa_model.train()
+    with torch.no_grad():
+        for indx, batch in enumerate(train_loader):
+            image = batch["image"].type(torch.float).cuda()
+            _ = swa_model(image)
+
+    swa_epochs = args.epochs - args.swa_start
+
+    torch.save(
+        swa_model.state_dict(),
+        os.path.join(args.output_dir, f"model_{args.model_name}_{swa_epochs}swa_lr{args.swa_lr}.pt")
+    )
+
+    swa_metrics = MetricsAccumulator(
+        args.problem_type, args.metrics, train_loader.dataset.num_classes, average="mean",
+        include_background=train_loader.dataset.include_background, mask_reshape_method=args.mask_reshape_method
+    )
+
+    swa_metrics = val_step(
+        val_loader, swa_model, swa_metrics, generated_overlays=args.generated_overlays,
+        overlays_path=f"{args.output_dir}/overlays_swa"
+    )
+
+    print("SWA validation metrics")
+    swa_metrics.report_best()
