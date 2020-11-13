@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Check if DRIVE data is available, if not download
+# Check if LVSC data is available, if not download
 if [ ! -d "data/LVSC" ]
 then
     echo "LVSC data not found at 'data' directory. Downloading..."
@@ -16,6 +16,12 @@ then
     echo "Done!"
 else
   echo "LVSC data found at 'data' directory!"
+fi
+
+# Only download the data argument ./tests/segmentation/lvsc2d.sh only_data
+if [[ $1 == "only_data" ]]
+then
+  exit
 fi
 
 gpu="0,1"

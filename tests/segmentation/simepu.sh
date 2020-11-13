@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Check if DRIVE data is available, if not download
+# Check if SIMEPU data is available, if not download
 if [ ! -d "data/SIMEPU_Segmentation" ]
 then
     echo "SIMEPU Segmentation data not found at 'data' directory. Downloading..."
@@ -16,6 +16,12 @@ then
     echo "Done!"
 else
   echo "SIMEPU Segmentation data found at 'data' directory!"
+fi
+
+# Only download the data argument ./tests/segmentation/simepu.sh only_data
+if [[ $1 == "only_data" ]]
+then
+  exit
 fi
 
 gpu="0,1"

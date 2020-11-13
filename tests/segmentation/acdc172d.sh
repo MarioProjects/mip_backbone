@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Check if DRIVE data is available, if not download
+# Check if ACDC 2017 data is available, if not download
 if [ ! -d "data/AC17" ]
 then
     echo "AC17 data not found at 'data' directory. Downloading..."
@@ -18,6 +18,11 @@ else
   echo "AC17 data found at 'data' directory!"
 fi
 
+# Only download the data argument ./tests/segmentation/acdc172d.sh only_data
+if [[ $1 == "only_data" ]]
+then
+  exit
+fi
 gpu="0,1"
 dataset="ACDC172D"
 problem_type="segmentation"

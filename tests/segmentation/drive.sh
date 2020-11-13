@@ -18,6 +18,12 @@ else
   echo "DRIVE data found at 'data' directory!"
 fi
 
+# Only download the data argument ./tests/segmentation/drive.sh only_data
+if [[ $1 == "only_data" ]]
+then
+  exit
+fi
+
 gpu="0"
 dataset="DRIVE"
 problem_type="segmentation"
