@@ -1,9 +1,10 @@
 import torch
+from torch.optim.swa_utils import AveragedModel
 
 from models.segmentation import model_selector_segmentation
 
 
-def model_selector(problem_type, model_name, num_classes, in_channels, devices="", checkpoint=""):
+def model_selector(problem_type, model_name, num_classes, in_channels, devices="", checkpoint="", from_swa=False):
     """
 
     Args:
@@ -13,6 +14,7 @@ def model_selector(problem_type, model_name, num_classes, in_channels, devices="
         in_channels:
         devices:
         checkpoint:
+        from_swa:
 
     Returns:
 
@@ -28,6 +30,8 @@ def model_selector(problem_type, model_name, num_classes, in_channels, devices="
     model_total_params = sum(p.numel() for p in model.parameters())
     print("Model total number of parameters: {}".format(model_total_params))
     model = torch.nn.DataParallel(model, device_ids=range(torch.cuda.device_count()))
+    if from_swa:
+        model = AveragedModel(model)
 
     if checkpoint != "":
         print("Loaded model from checkpoint: {}".format(checkpoint))

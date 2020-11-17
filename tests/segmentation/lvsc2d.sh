@@ -79,5 +79,8 @@ python3 -u train.py --gpu $gpu --dataset $dataset --model_name $model --img_size
 --output_dir "$output_dir" --metrics iou dice --problem_type $problem_type --mask_reshape_method $mask_reshape_method \
 --scheduler_steps 45 65 --generated_overlays $generated_overlays --add_depth
 
-
-
+model_checkpoint="$output_dir/model_${model_name}_${epochs-swa_start}epochs_swalr${swa_lr}.pt"
+python3 -u evaluate.py --gpu $gpu --dataset $dataset --model_name $model --img_size $img_size --crop_size $crop_size \
+--swa_checkpoint --batch_size $batch_size --normalization $normalization --output_dir "$output_dir" --metrics iou dice \
+--problem_type $problem_type --mask_reshape_method $mask_reshape_method \
+--generated_overlays $generated_overlays --add_depth --model_checkpoint "$model_checkpoint"

@@ -169,7 +169,7 @@ class LVSC2Dataset(Dataset):
         :param normalization: (str) Normalization mode. One of 'reescale', 'standardize', 'global_standardize'
         """
 
-        if mode not in ["train", "validation"]:
+        if mode not in ["train", "validation", "test"]:
             assert False, "Unknown mode '{}'".format(mode)
 
         self.base_dir = "data/LVSC"
@@ -177,20 +177,27 @@ class LVSC2Dataset(Dataset):
         self.class_to_cat = {1: "LV"}
         self.include_background = False
         self.num_classes = 1  # LV
+        data, directory = [], ""
 
-        data = []
-        directory = os.path.join(self.base_dir, "Training")
+        if mode in ["train", "validation"]:
+            directory = os.path.join(self.base_dir, "Training")
+        elif mode in ["test"]:
+            directory = os.path.join(self.base_dir, "Validation")
+
         for subdir, dirs, files in os.walk(directory):
             for file in files:
                 entry = os.path.join(subdir, file)
                 if "_SA" in entry and entry.endswith(".dcm"):
+                    # Check that we have corresponding mask, not all masks are available
+                    if mode == "test" and not os.path.isfile(self.test_dcm2png_path(entry)):
+                        continue
                     data.append(entry)
 
         np.random.seed(1)
         np.random.shuffle(data)
         if mode == "train":
             data = data[:int(len(data) * .85)]
-        else:
+        elif mode == "validation":
             data = data[int(len(data) * .85):]
 
         self.data = data
@@ -229,14 +236,26 @@ class LVSC2Dataset(Dataset):
 
         return res
 
+    @staticmethod
+    def test_dcm2png_path(dcm_path):
+        return "/".join([
+            str(x) for x in
+            dcm_path.replace(".dcm", ".png").replace("Validation", "consensus/images").split("/")
+            if "CAP" not in x
+        ])
+
     def __getitem__(self, idx):
 
         img_path = self.data[idx]
         image = d.read_dicom(img_path)
 
         img_id = os.path.splitext(img_path)[0].split("/")[-1]
-        mask_path = self.data[idx].replace(".dcm", ".png")
-        mask = np.where(io.imread(mask_path)[..., 0] > 0.5, 1, 0).astype(np.int32)
+        if self.mode == "test":
+            mask_path = self.test_dcm2png_path(self.data[idx])
+            mask = np.where(io.imread(mask_path) > 0.5, 1, 0).astype(np.int32)
+        else:
+            mask_path = self.data[idx].replace(".dcm", ".png")
+            mask = np.where(io.imread(mask_path)[..., 0] > 0.5, 1, 0).astype(np.int32)
 
         original_image = copy.deepcopy(image)
         original_mask = copy.deepcopy(mask)
@@ -249,7 +268,7 @@ class LVSC2Dataset(Dataset):
             image = d.add_depth_channels(image)
         mask = torch.from_numpy(np.expand_dims(mask, 0)).float()
 
-        if self.mode == "validation":  # 'image', 'original_img', 'original_mask', 'img_id'
+        if self.mode in ["validation", "test"]:  # 'image', 'original_img', 'original_mask', 'img_id'
             return {"image": image, "original_img": original_image, "original_mask": original_mask, "img_id": img_id}
 
         return {"image": image, "label": mask, "original_mask": original_mask}
@@ -359,8 +378,10 @@ class ACDC172Dataset(Dataset):
         return {"image": image, "label": mask, "original_mask": original_mask}
 
 
-def dataset_selector(train_aug, train_aug_img, val_aug, args):
+def dataset_selector(train_aug, train_aug_img, val_aug, args, is_test=False):
     if args.dataset == "DRIVE":
+        if is_test:
+            assert False, "Not test partition available"
         train_dataset = DRIVEDataset(
             mode="train", transform=train_aug, img_transform=train_aug_img, normalization=args.normalization
         )
@@ -373,6 +394,8 @@ def dataset_selector(train_aug, train_aug_img, val_aug, args):
         val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, drop_last=False)
 
     elif args.dataset == "SIMEPUSegmentation":
+        if is_test:
+            assert False, "Not test partition available"
         train_dataset = SIMEPUSegmentationDataset(
             mode="train", transform=train_aug, img_transform=train_aug_img,
             selected_class=args.selected_class, normalization=args.normalization
@@ -387,6 +410,17 @@ def dataset_selector(train_aug, train_aug_img, val_aug, args):
         val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, pin_memory=True, drop_last=False)
 
     elif args.dataset == "LVSC2D":
+        if is_test:
+            test_dataset = LVSC2Dataset(
+                mode="test", transform=val_aug, img_transform=[],
+                add_depth=args.add_depth, normalization=args.normalization
+            )
+
+            return DataLoader(
+                test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True,
+                drop_last=False, collate_fn=test_dataset.custom_collate
+            )
+
         train_dataset = LVSC2Dataset(
             mode="train", transform=train_aug, img_transform=train_aug_img,
             add_depth=args.add_depth, normalization=args.normalization
@@ -407,6 +441,8 @@ def dataset_selector(train_aug, train_aug_img, val_aug, args):
         )
 
     elif args.dataset == "ACDC172D":
+        if is_test:
+            assert False, "Not test partition available"
         train_dataset = ACDC172Dataset(
             mode="train", transform=train_aug, img_transform=train_aug_img,
             add_depth=args.add_depth, normalization=args.normalization

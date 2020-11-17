@@ -269,7 +269,7 @@ def train_step(train_loader, model, criterion, weights_criterion, multiclass_cri
 
     """
     model.train()
-    for indx, batch in enumerate(train_loader):
+    for batch_indx, batch in enumerate(train_loader):
         image, label = batch["image"].cuda(), batch["label"].cuda()
         optimizer.zero_grad()
         prob_preds = model(image)
@@ -292,7 +292,7 @@ def val_step(val_loader, model, val_metrics, generated_overlays=1, overlays_path
 
     model.eval()
     with torch.no_grad():
-        for sample_indx, batch in enumerate(val_loader):
+        for batch_indx, batch in enumerate(val_loader):
             image = batch["image"].cuda()
             prob_preds = model(image)
             original_masks = batch["original_mask"]
@@ -332,7 +332,7 @@ def finish_swa(swa_model, train_loader, val_loader, args):
 
     torch.save(
         swa_model.state_dict(),
-        os.path.join(args.output_dir, f"model_{args.model_name}_{swa_epochs}swa_lr{args.swa_lr}.pt")
+        os.path.join(args.output_dir, f"model_{args.model_name}_{swa_epochs}epochs_swalr{args.swa_lr}.pt")
     )
 
     swa_metrics = MetricsAccumulator(

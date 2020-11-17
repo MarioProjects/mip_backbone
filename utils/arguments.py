@@ -56,6 +56,7 @@ parser.add_argument('--criterion', type=str, default='bce', help='Criterion for 
 parser.add_argument('--weights_criterion', type=str, default='default', help='Weights for each subcriterion')
 
 parser.add_argument('--model_checkpoint', type=str, default="", help='If there is a model checkpoint to load')
+parser.add_argument('--swa_checkpoint', action='store_true', help='If we load the model checkpoint from SWA model')
 
 parser.add_argument('--swa_freq', type=int, default=1, help='SWA Frequency')
 parser.add_argument('--swa_start', type=int, default=-1, help='Epoch to start SWA and scheduler SWA_LR')
