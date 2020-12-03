@@ -93,6 +93,7 @@ class MMs2DDataset(Dataset):
         external_code = df_entry["External code"]
         c_slice = df_entry["Slice"]
         c_phase = df_entry["Phase"]
+        img_id = f"{external_code}_slice{c_slice}_phase{c_phase}"
 
         labeled_info = ""
         if self.partition == "Training":
@@ -124,7 +125,7 @@ class MMs2DDataset(Dataset):
         mask = torch.from_numpy(np.expand_dims(mask, 0)).float() if mask is not None else None
 
         return {
-            "img_id": external_code, "image": image, "label": mask,
+            "img_id": img_id, "image": image, "label": mask,
             "original_img": original_image, "original_mask": original_mask
         }
 

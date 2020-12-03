@@ -98,7 +98,7 @@ class MetricsAccumulator:
                 if torch.is_tensor(target[pred_indx]):
                     original_mask = target[pred_indx].data.cpu().numpy().astype(np.uint8).squeeze()
                 else:  # numpy array
-                    original_mask = target[pred_indx]
+                    original_mask = target[pred_indx].astype(np.uint8)
 
                 # Calculate metrics resizing prediction to original mask shape
                 if not self.include_background and self.num_classes == 1:  # Single class -> sigmoid
