@@ -190,11 +190,13 @@ class SCse(nn.Module):
         return self.satt(x) + self.catt(x)
 
 
-class ResUnetv4(nn.Module):
-    def __init__(self, model_version, pretrained=True, num_classes=1, classification=False, in_channels=1):
-        super(ResUnetv4, self).__init__()
+class ResUnet(nn.Module):
+    def __init__(self, model_version, pretrained=True, num_classes=1, in_channels=1,
+                 classification=False, add_scse=True, add_hypercols=True):
+        super(ResUnet, self).__init__()
 
         self.classification = classification
+        self.add_hypercols = add_hypercols
 
         if "resnet18" in model_version:
             self.resnet = torchvision.models.resnet18(pretrained=pretrained)
@@ -213,31 +215,46 @@ class ResUnetv4(nn.Module):
         self.conv1 = nn.Sequential(
             self.resnet.conv1,
             self.resnet.bn1,
-            self.resnet.relu)
+            self.resnet.relu
+        )
 
-        self.encode2 = nn.Sequential(self.resnet.layer1,
-                                     SCse(64))
-        self.encode3 = nn.Sequential(self.resnet.layer2,
-                                     SCse(128))
-        self.encode4 = nn.Sequential(self.resnet.layer3,
-                                     SCse(256))
-        self.encode5 = nn.Sequential(self.resnet.layer4,
-                                     SCse(512))
+        self.encode2 = nn.Sequential(
+            self.resnet.layer1, SCse(64) if add_scse else nn.Identity()
+        )
+        self.encode3 = nn.Sequential(
+            self.resnet.layer2, SCse(128) if add_scse else nn.Identity()
+        )
+        self.encode4 = nn.Sequential(
+            self.resnet.layer3, SCse(256) if add_scse else nn.Identity()
+        )
+        self.encode5 = nn.Sequential(
+            self.resnet.layer4, SCse(512) if add_scse else nn.Identity()
+        )
 
-        self.center = nn.Sequential(FPAv3(512, 256),
-                                    nn.MaxPool2d(2, 2))
+        self.center = nn.Sequential(
+            FPAv3(512, 256), nn.MaxPool2d(2, 2)
+        )
 
         if classification:
             self.linear = nn.Linear(256 * 1 * 1, num_classes)
 
         else:
-            self.decode5 = Decoderv2(256, 512, 64)
-            self.decode4 = Decoderv2(64, 256, 64)
-            self.decode3 = Decoderv2(64, 128, 64)
-            self.decode2 = Decoderv2(64, 64, 64)
-            self.decode1 = Decoder(64, 32, 64)
+            if add_hypercols:
+                self.decode5 = Decoderv2(256, 512, 64)
+                self.decode4 = Decoderv2(64, 256, 64)
+                self.decode3 = Decoderv2(64, 128, 64)
+                self.decode2 = Decoderv2(64, 64, 64)
+                self.decode1 = Decoder(64, 32, 64)
 
-            self.logit = nn.Sequential(nn.Conv2d(320, num_classes, kernel_size=3, padding=1))
+                self.logit = nn.Sequential(nn.Conv2d(320, num_classes, kernel_size=3, padding=1))
+            else:
+                self.decode5 = Decoderv2(256, 512, 512)
+                self.decode4 = Decoderv2(512, 256, 256)
+                self.decode3 = Decoderv2(256, 128, 128)
+                self.decode2 = Decoderv2(128, 64, 64)
+                self.decode1 = Decoder(64, 32, 32)
+
+                self.logit = nn.Sequential(nn.Conv2d(32, num_classes, kernel_size=3, padding=1))
 
     def forward(self, x):
         # x: (batch_size, 3, 224, 224)
@@ -261,23 +278,31 @@ class ResUnetv4(nn.Module):
         d2 = self.decode2(d3, e2)  # 64, 128, 128
         d1 = self.decode1(d2)  # 64, 256, 256
 
-        f = torch.cat((d1,
-                       F.interpolate(d2, scale_factor=2, mode='bilinear', align_corners=True),
-                       F.interpolate(d3, scale_factor=4, mode='bilinear', align_corners=True),
-                       F.interpolate(d4, scale_factor=8, mode='bilinear', align_corners=True),
-                       F.interpolate(d5, scale_factor=16, mode='bilinear', align_corners=True)), 1)  # 320, 256, 256
+        if self.add_hypercols:
+            f = torch.cat((d1,
+                           F.interpolate(d2, scale_factor=2, mode='bilinear', align_corners=True),
+                           F.interpolate(d3, scale_factor=4, mode='bilinear', align_corners=True),
+                           F.interpolate(d4, scale_factor=8, mode='bilinear', align_corners=True),
+                           F.interpolate(d5, scale_factor=16, mode='bilinear', align_corners=True)), 1)  # 320, 256, 256
+            logit = self.logit(f)  # 1, 256, 256
 
-        logit = self.logit(f)  # 1, 256, 256
+        else:
+            logit = self.logit(d1)
 
         return logit
 
 
 def resnet_model_selector(model_name, num_classes=1, classification=False, in_channels=3):
     if "resnet" in model_name and "unet" in model_name:
+        if all(x not in model_name for x in ["scratch", "imagenet"]):
+            assert False, "Please specify if scratch or pretrained on imagenet weights!"
 
-        return ResUnetv4(
-            model_name, pretrained=True if "scratch" in model_name else False, num_classes=num_classes,
-            classification=classification, in_channels=in_channels
+        add_scse = True if "scse" in model_name else False
+        add_hypercols = True if "hypercols" in model_name else False
+
+        return ResUnet(
+            model_name, pretrained=False if "scratch" in model_name else True, num_classes=num_classes,
+            classification=classification, in_channels=in_channels, add_scse=add_scse, add_hypercols=add_hypercols
         ).cuda()
 
     else:
