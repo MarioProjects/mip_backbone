@@ -1,3 +1,4 @@
+import numpy as np
 from torch.optim.swa_utils import SWALR
 from utils.general import *
 from utils.losses import *
@@ -238,14 +239,13 @@ def calculate_loss(y_true, y_pred, criterion, weights_criterion, multiclass_crit
         for indx in multiclass_indices:
             loss += weights_criterion[indx] * criterion[indx](y_pred, y_true)
 
-        singleclass_indices = [i for i, x in enumerate(multiclass_criterion) if not x]
         # Single class criterions => calculate criterions per class
+        singleclass_indices = [i for i, x in enumerate(multiclass_criterion) if not x]
         for current_class in np.unique(y_true.cpu().numpy()):
 
             tmp_loss, tmp_mask = 0, 1 - (y_true != current_class) * 1.0
-            for indx in singleclass_indices:  # Acumulamos todos los losses para una clase
-                tmp_loss += (weights_criterion[indx] * criterion[indx](y_pred[:, int(current_class), :, :],
-                                                                       tmp_mask.squeeze(1)))
+            for indx in singleclass_indices:  # Accumulate all different losses for each single class
+                tmp_loss += weights_criterion[indx] * criterion[indx](y_pred[:, int(current_class), :, :], tmp_mask.squeeze(1))
 
             # Average over the number of classes
             loss += (tmp_loss / len(y_true.unique()))

@@ -6,8 +6,127 @@ from torch.utils.data import Dataset
 from skimage import io
 import albumentations
 import copy
+import pandas as pd
 
 import utils.dataload as d
+
+
+class MMs2DDataset(Dataset):
+    """
+    Dataset for Digital Retinal Images for Vessel Extraction (DRIVE) Challenge.
+    https://drive.grand-challenge.org/
+    """
+
+    def __init__(self, partition, transform, img_transform, normalization="normalize", add_depth=True,
+                 is_labeled=True, centre=None, vendor=None, end_volumes=True, data_relative_path=""):
+        """
+        :param partition: (string) Dataset partition in ["Training", "Validation", "Test"]
+        :param transform: (list) List of albumentations applied to image and mask
+        :param img_transform: (list) List of albumentations applied to image only
+        :param normalization: (str) Normalization mode. One of 'reescale', 'standardize', 'global_standardize'
+        :param add_depth: (bool) Whether transform or not 1d slices to 3 channels images
+        :param is_labeled: (bool) Dataset partition in ["Training", "Validation", "Test"]
+        :param centre: (int) Select by centre label. Available [1, 2, 3, 4, 5]
+        :param vendor: (string) Select by vendor label. Available ["A", "B", "C", "D"]
+        :param end_volumes: (bool) Whether only include 'ED' and 'ES' phases ((to) segmented) or all
+        :param data_relative_path: (string) Prepend extension to MMs data base dir
+        """
+
+        if partition not in ["Training", "Validation", "Test"]:
+            assert False, "Unknown mode '{}'".format(partition)
+
+        self.base_dir = os.path.join(data_relative_path, "data/MMs")
+        self.partition = partition
+        self.img_channels = 3
+        self.class_to_cat = {1: "LV", 2: "MYO", 3: "RV", 4: "Mean"}
+        self.include_background = False
+        self.num_classes = 4  # background - LV - MYO - RV
+
+        data = pd.read_csv(os.path.join(self.base_dir, "slices_info.csv"))
+        data = data.loc[(data["Partition"] == partition) & (data["Labeled"] == is_labeled)]
+        if vendor is not None:
+            data = data.loc[data['Vendor'].isin(vendor)]
+        if centre is not None:
+            data = data.loc[data['Centre'].isin(centre)]
+
+        if end_volumes:  # Get only volumes in 'ED' and 'ES' phases (segmented)
+            data = data.loc[(data["ED"] == data["Phase"]) | (data["ES"] == data["Phase"])]
+
+        data = data.reset_index(drop=True)
+        self.data = data
+
+        self.add_depth = add_depth
+        self.normalization = normalization
+        self.transform = albumentations.Compose(transform)
+        self.img_transform = albumentations.Compose(img_transform)
+
+    def __len__(self):
+        return len(self.data)
+
+    @staticmethod
+    def custom_collate(batch):
+        """
+
+        Args:
+            batch: list of dataset items (from __getitem__). In this case batch is a list of dicts with
+                   key image, and depending of validation or train different keys
+
+        Returns:
+
+        """
+        # We have to modify "original_mask" as has different shapes
+        batch_keys = list(batch[0].keys())
+        res = {bkey: [] for bkey in batch_keys}
+        for belement in batch:
+            for bkey in batch_keys:
+                res[bkey].append(belement[bkey])
+
+        for bkey in batch_keys:
+            if bkey == "original_mask" or bkey == "original_img" or bkey == "img_id":
+                continue  # We wont stack over original_mask...
+            res[bkey] = torch.stack(res[bkey]) if None not in res[bkey] else None
+
+        return res
+
+    def __getitem__(self, idx):
+        df_entry = self.data.loc[idx]
+        external_code = df_entry["External code"]
+        c_slice = df_entry["Slice"]
+        c_phase = df_entry["Phase"]
+
+        labeled_info = ""
+        if self.partition == "Training":
+            labeled_info = "Labeled" if df_entry["Labeled"] else "Unlabeled"
+
+        img_path = os.path.join(
+            self.base_dir, self.partition, labeled_info, external_code,
+            f"{external_code}_sa_slice{c_slice}_phase{c_phase}.npy"
+        )
+        image = np.load(img_path)
+
+        mask = None
+        if not(self.partition == "Training" and not df_entry["Labeled"]):
+            mask_path = os.path.join(
+                self.base_dir, self.partition, labeled_info, external_code,
+                f"{external_code}_sa_gt_slice{c_slice}_phase{c_phase}.npy"
+            )
+            mask = np.load(mask_path)
+
+        original_image = copy.deepcopy(image)
+        original_mask = copy.deepcopy(mask)
+
+        image, mask = d.apply_augmentations(image, self.transform, self.img_transform, mask)
+        image = d.apply_normalization(image, self.normalization)
+        image = torch.from_numpy(np.expand_dims(image, axis=0))
+
+        if self.add_depth:
+            image = d.add_depth_channels(image)
+        mask = torch.from_numpy(np.expand_dims(mask, 0)).float() if mask is not None else None
+
+        return {
+            "img_id": external_code, "image": image, "label": mask,
+            "original_img": original_image, "original_mask": original_mask
+        }
 
 
 class DRIVEDataset(Dataset):
@@ -161,7 +280,7 @@ class LVSC2Dataset(Dataset):
     2D Dataset for LVSC Challenge.
     """
 
-    def __init__(self, mode, transform, img_transform, add_depth=True, normalization="normalize"):
+    def __init__(self, mode, transform, img_transform, add_depth=True, normalization="normalize", relative_path=""):
         """
         :param mode: (string) Dataset mode in ["train", "validation"]
         :param transform: (list) List of albumentations applied to image and mask
@@ -172,7 +291,7 @@ class LVSC2Dataset(Dataset):
         if mode not in ["train", "validation", "test"]:
             assert False, "Unknown mode '{}'".format(mode)
 
-        self.base_dir = "data/LVSC"
+        self.base_dir = os.path.join(relative_path, "data/LVSC")
         self.img_channels = 3
         self.class_to_cat = {1: "LV"}
         self.include_background = False
@@ -271,7 +390,7 @@ class LVSC2Dataset(Dataset):
         if self.mode in ["validation", "test"]:  # 'image', 'original_img', 'original_mask', 'img_id'
             return {"image": image, "original_img": original_image, "original_mask": original_mask, "img_id": img_id}
 
-        return {"image": image, "label": mask, "original_mask": original_mask}
+        return {"image": image, "original_img": original_image, "label": mask, "original_mask": original_mask}
 
 
 class ACDC172Dataset(Dataset):
@@ -378,8 +497,75 @@ class ACDC172Dataset(Dataset):
         return {"image": image, "label": mask, "original_mask": original_mask}
 
 
+def find_values(string, label, label_type):
+    """
+
+    Args:
+        string:
+        label:
+        label_type:
+
+    Returns:
+
+    Example:
+        string = "mms_centre14_vendorA"
+        label = "centre"
+        label_type = int
+        -> res = [1, 4]
+
+        string = "mms_centre14_vendorA"
+        label = "vendor"
+        label_type = str
+        -> res = ['A']
+
+    """
+    res = None
+    if string.find(label) != -1:
+        c_centre = string[string.find(label) + len(label):]
+        centre_break = c_centre.find("_")
+        if centre_break != -1:
+            c_centre = c_centre[:centre_break]
+        res = [label_type(i) for i in c_centre]
+    return res
+
+
 def dataset_selector(train_aug, train_aug_img, val_aug, args, is_test=False):
-    if args.dataset == "DRIVE":
+    if "mms2d" in args.dataset:
+        if is_test:
+            test_dataset = MMs2DDataset(
+                partition="Test", transform=train_aug, img_transform=train_aug_img, vendor=None, end_volumes=True,
+                normalization=args.normalization, add_depth=args.add_depth, is_labeled=False, centre=None,
+            )
+
+            return DataLoader(
+                test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True,
+                drop_last=False, collate_fn=test_dataset.custom_collate
+            )
+
+        only_end = False if "full" in args.dataset else True
+        unlabeled = True if "unlabeled" in args.dataset else False
+        c_centre, c_vendor = find_values(args.dataset, "centre", int), find_values(args.dataset, "vendor", str)
+
+        train_dataset = MMs2DDataset(
+            partition="Training", transform=train_aug, img_transform=train_aug_img, normalization=args.normalization,
+            add_depth=args.add_depth, is_labeled=(not unlabeled), centre=c_centre, vendor=c_vendor, end_volumes=only_end
+        )
+
+        val_dataset = MMs2DDataset(
+            partition="Validation", transform=train_aug, img_transform=train_aug_img, normalization=args.normalization,
+            add_depth=args.add_depth, is_labeled=False, centre=None, vendor=None, end_volumes=True
+        )
+
+        train_loader = DataLoader(
+            train_dataset, batch_size=args.batch_size, pin_memory=True,
+            shuffle=True, collate_fn=train_dataset.custom_collate
+        )
+        val_loader = DataLoader(
+            val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True,
+            drop_last=False, collate_fn=val_dataset.custom_collate
+        )
+
+    elif args.dataset == "DRIVE":
         if is_test:
             assert False, "Not test partition available"
         train_dataset = DRIVEDataset(

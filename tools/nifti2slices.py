@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+# coding: utf-8
+"""
+Usage: python tools/nifti2slices.py --data_path data/MyDataset/NiftiParentFolder
+"""
 import argparse
 import numpy as np
 import os
