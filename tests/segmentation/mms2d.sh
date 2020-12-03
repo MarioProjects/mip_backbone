@@ -33,20 +33,20 @@ problem_type="segmentation"
 #   -> small_segmentation_unet - small_segmentation_small_unet
 #      small_segmentation_extrasmall_unet - small_segmentation_nano_unet
 #   -> resnet18_pspnet_unet - resnet34_pspnet_unet
-model="resnet34_unet_imagenet_encoder"
+model="resnet34_unet_scratch_scse_hypercols"
 
 img_size=224
 crop_size=224
-batch_size=4
+batch_size=32
 
-epochs=120
-swa_start=80
-defrost_epoch=7
+epochs=200
+swa_start=130
+defrost_epoch=-1
 
 # Available schedulers:
 # constant - steps - plateau - one_cycle_lr (max_lr) - cyclic (min_lr, max_lr, scheduler_steps)
 scheduler="steps"
-lr=0.0001
+lr=0.001
 swa_lr=0.00256
 # Available optimizers:
 # adam - sgd - over9000
@@ -79,8 +79,8 @@ python3 -u train.py --gpu $gpu --dataset $dataset --model_name $model --img_size
 --output_dir "$output_dir" --metrics iou dice --problem_type $problem_type --mask_reshape_method $mask_reshape_method \
 --scheduler_steps 45 65 --generated_overlays $generated_overlays --add_depth
 
-model_checkpoint="$output_dir/model_${model_name}_${epochs-swa_start}epochs_swalr${swa_lr}.pt"
-python3 -u evaluate.py --gpu $gpu --dataset $dataset --model_name $model --img_size $img_size --crop_size $crop_size \
---swa_checkpoint --batch_size $batch_size --normalization $normalization --output_dir "$output_dir" --metrics iou dice \
---problem_type $problem_type --mask_reshape_method $mask_reshape_method \
---generated_overlays $generated_overlays --add_depth --model_checkpoint "$model_checkpoint"
+#model_checkpoint="$output_dir/model_${model_name}_${epochs-swa_start}epochs_swalr${swa_lr}.pt"
+#python3 -u evaluate.py --gpu $gpu --dataset $dataset --model_name $model --img_size $img_size --crop_size $crop_size \
+#--swa_checkpoint --batch_size $batch_size --normalization $normalization --output_dir "$output_dir" --metrics iou dice \
+#--problem_type $problem_type --mask_reshape_method $mask_reshape_method \
+#--generated_overlays $generated_overlays --add_depth --model_checkpoint "$model_checkpoint"
