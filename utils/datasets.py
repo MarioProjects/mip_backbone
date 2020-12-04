@@ -93,7 +93,9 @@ class MMs2DDataset(Dataset):
         external_code = df_entry["External code"]
         c_slice = df_entry["Slice"]
         c_phase = df_entry["Phase"]
-        img_id = f"{external_code}_slice{c_slice}_phase{c_phase}"
+        c_vendor = df_entry["Vendor"]
+        c_centre = df_entry["Centre"]
+        img_id = f"{external_code}_slice{c_slice}_phase{c_phase}_vendor{c_vendor}_centre{c_centre}"
 
         labeled_info = ""
         if self.partition == "Training":
@@ -553,7 +555,7 @@ def dataset_selector(train_aug, train_aug_img, val_aug, args, is_test=False):
         )
 
         val_dataset = MMs2DDataset(
-            partition="Validation", transform=train_aug, img_transform=train_aug_img, normalization=args.normalization,
+            partition="Validation", transform=val_aug, img_transform=[], normalization=args.normalization,
             add_depth=args.add_depth, is_labeled=False, centre=None, vendor=None, end_volumes=True
         )
 
