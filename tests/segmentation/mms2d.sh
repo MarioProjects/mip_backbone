@@ -33,7 +33,7 @@ problem_type="segmentation"
 #   -> small_segmentation_unet - small_segmentation_small_unet
 #      small_segmentation_extrasmall_unet - small_segmentation_nano_unet
 #   -> resnet18_pspnet_unet - resnet34_pspnet_unet
-model="resnet34_unet_scratch_scse_hypercols"
+model="resnet18_unet_scratch_scse_hypercols"
 
 img_size=224
 crop_size=224
@@ -60,7 +60,7 @@ data_augmentation="mms2d"
 normalization="standardize"  # reescale - standardize
 mask_reshape_method="padd"  # padd - resize
 
-generated_overlays=10
+generated_overlays=32
 
 # Available criterions:
 # bce - bce_dice - bce_dice_ac - bce_dice_border - bce_dice_border_ce
@@ -77,10 +77,10 @@ python3 -u train.py --gpu $gpu --dataset $dataset --model_name $model --img_size
 --scheduler $scheduler --learning_rate $lr --swa_lr $swa_lr --optimizer $optimizer --criterion $criterion \
 --normalization $normalization --weights_criterion "$weights_criterion" --data_augmentation $data_augmentation \
 --output_dir "$output_dir" --metrics iou dice --problem_type $problem_type --mask_reshape_method $mask_reshape_method \
---scheduler_steps 70 100 --generated_overlays $generated_overlays --add_depth
+--scheduler_steps 70 100 --generated_overlays $generated_overlays --add_depth --notify
 
 #model_checkpoint="$output_dir/model_${model_name}_${epochs-swa_start}epochs_swalr${swa_lr}.pt"
 #python3 -u evaluate.py --gpu $gpu --dataset $dataset --model_name $model --img_size $img_size --crop_size $crop_size \
-#--swa_checkpoint --batch_size $batch_size --normalization $normalization --output_dir "$output_dir" --metrics iou dice \
-#--problem_type $problem_type --mask_reshape_method $mask_reshape_method \
-#--generated_overlays $generated_overlays --add_depth --model_checkpoint "$model_checkpoint"
+#--swa_checkpoint --batch_size $batch_size --normalization $normalization --output_dir "$output_dir" \
+#--problem_type $problem_type --mask_reshape_method $mask_reshape_method --metrics iou dice \
+#--generated_overlays $generated_overlays --add_depth --model_checkpoint "$model_checkpoint" --notify
