@@ -9,7 +9,7 @@ def build_header(class_to_cat, metric_list, display=True):
     Args:
         class_to_cat: Example {1: "LV", 2: "RV", 3: "MYO", 4: "Mean"}
         metric_list: Example ["iou", "dice", "assd", "hausdorff"]
-        display: Wheter print header or not
+        display: Whether print header or not
 
     Returns:
 

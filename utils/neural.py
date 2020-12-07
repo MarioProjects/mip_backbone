@@ -293,11 +293,10 @@ def val_step(val_loader, model, val_metrics, generated_overlays=1, overlays_path
     model.eval()
     with torch.no_grad():
         for batch_indx, batch in enumerate(val_loader):
+            img_id = batch["img_id"]
             image = batch["image"].cuda()
             prob_preds = model(image)
             original_masks = batch["original_mask"]
-
-            img_id = batch["img_id"][0]
 
             if torch.is_tensor(batch["original_img"]):
                 original_img = batch["original_img"].data.cpu().numpy()
@@ -308,6 +307,29 @@ def val_step(val_loader, model, val_metrics, generated_overlays=1, overlays_path
 
     val_metrics.update()
     return val_metrics
+
+
+def test_step(val_loader, model, test_metrics, generated_overlays=1, overlays_path=""):
+    if generated_overlays != 1 and overlays_path != "":
+        os.makedirs(overlays_path, exist_ok=True)
+
+    model.eval()
+    with torch.no_grad():
+        for batch_indx, batch in enumerate(val_loader):
+            img_id = batch["img_id"]
+            image = batch["image"].cuda()
+            prob_preds = model(image)
+            original_masks = batch["original_mask"]
+
+            if torch.is_tensor(batch["original_img"]):
+                original_img = batch["original_img"].data.cpu().numpy()
+            else:  # list of numpy array (generally when different sizes of original imgs)
+                original_img = batch["original_img"]
+
+            test_metrics.record(prob_preds, original_masks, original_img, generated_overlays, overlays_path, img_id)
+
+    test_metrics.update()
+    return test_metrics
 
 
 def finish_swa(swa_model, train_loader, val_loader, args):

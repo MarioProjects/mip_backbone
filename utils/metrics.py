@@ -45,13 +45,13 @@ class MetricsAccumulator:
         self.num_classes = (num_classes-1) if num_classes > 1 and not include_background else num_classes
         self.metric_methods_args = {}
         self.metrics_helpers = {}
-        self.metric_methods = self.__metrics_init__()
+        self.metric_methods = self.__metrics_init()
         self.metrics = {metric_name: [] for metric_name in metric_list}
         self.is_updated = True
         self.average = average
         self.mask_reshape_method = mask_reshape_method
 
-    def __metrics_init__(self):
+    def __metrics_init(self):
         metric_methods = []
         for metric_str in self.metric_list:
             if metric_str in ["accuracy"]:
@@ -81,7 +81,7 @@ class MetricsAccumulator:
                 self.metrics_helpers["assd_best_value"] = 10e8
         return metric_methods
 
-    def record(self, prediction, target, original_img=None, generated_overlays=-1, overlays_path="", img_id=""):
+    def record(self, prediction, target, original_img=None, generated_overlays=-1, overlays_path="", img_id=[]):
 
         if self.is_updated:
             for key in self.metrics:
@@ -130,7 +130,7 @@ class MetricsAccumulator:
                             metric(y_true, y_pred, **self.metric_methods_args[self.metric_list[indx]])]
 
                 if generated_overlays > 0 and len(os.listdir(overlays_path)) < generated_overlays:
-                    plot_save_pred(original_img[pred_indx], original_mask, pred_mask, overlays_path, img_id)
+                    plot_save_pred(original_img[pred_indx], original_mask, pred_mask, overlays_path, img_id[pred_indx])
 
         elif self.problem_type == "classification":
             assert False, f"To be done record for classification"

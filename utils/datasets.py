@@ -32,7 +32,7 @@ class MMs2DDataset(Dataset):
         :param data_relative_path: (string) Prepend extension to MMs data base dir
         """
 
-        if partition not in ["Training", "Validation", "Test"]:
+        if partition not in ["Training", "Validation", "Testing"]:
             assert False, "Unknown mode '{}'".format(partition)
 
         self.base_dir = os.path.join(data_relative_path, "data/MMs")
@@ -536,7 +536,7 @@ def dataset_selector(train_aug, train_aug_img, val_aug, args, is_test=False):
     if "mms2d" in args.dataset:
         if is_test:
             test_dataset = MMs2DDataset(
-                partition="Test", transform=train_aug, img_transform=train_aug_img, vendor=None, end_volumes=True,
+                partition="Testing", transform=val_aug, img_transform=train_aug_img, vendor=None, end_volumes=True,
                 normalization=args.normalization, add_depth=args.add_depth, is_labeled=False, centre=None,
             )
 
