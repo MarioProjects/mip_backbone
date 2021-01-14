@@ -1,27 +1,18 @@
 #!/bin/bash
-
+# Only download the data argument ./tests/segmentation/lvsc2d.sh only_data
 # Check if LVSC data is available, if not download
 if [ ! -d "data/LVSC" ]
 then
     echo "LVSC data not found at 'data' directory. Downloading..."
-    wget -nv --load-cookies /tmp/cookies.txt \
-      "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt \
-      --keep-session-cookies --no-check-certificate \
-      'https://docs.google.com/uc?export=download&id=1zdO29XJ-368VfXGYiLGehSFnVp5MW4m3' \
-      -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1zdO29XJ-368VfXGYiLGehSFnVp5MW4m3" \
-      -O lv_lvsc.tar.gz && rm -rf /tmp/cookies.txt
+    curl -O -J https://nextcloud.maparla.duckdns.org/s/cRiw9Zdi8JkZJNN/download
     mkdir -p data
     tar -zxf lv_lvsc.tar.gz  -C data/
     rm lv_lvsc.tar.gz
     echo "Done!"
+    [ "$1" == "only_data" ] && exit
 else
-  echo "LVSC data found at 'data' directory!"
-fi
-
-# Only download the data argument ./tests/segmentation/lvsc2d.sh only_data
-if [[ $1 == "only_data" ]]
-then
-  exit
+  echo "LVSC already downloaded!"
+  [ "$1" == "only_data" ] && exit
 fi
 
 gpu="0,1"
@@ -79,7 +70,7 @@ python3 -u train.py --gpu $gpu --dataset $dataset --model_name $model --img_size
 --output_dir "$output_dir" --metrics iou dice --problem_type $problem_type --mask_reshape_method $mask_reshape_method \
 --scheduler_steps 45 65 --generated_overlays $generated_overlays --add_depth
 
-model_checkpoint="$output_dir/model_${model_name}_${epochs-swa_start}epochs_swalr${swa_lr}.pt"
+model_checkpoint="$output_dir/model_${model}_${epochs-swa_start}epochs_swalr${swa_lr}.pt"
 python3 -u evaluate.py --gpu $gpu --dataset $dataset --model_name $model --img_size $img_size --crop_size $crop_size \
 --swa_checkpoint --batch_size $batch_size --normalization $normalization --output_dir "$output_dir" --metrics iou dice \
 --problem_type $problem_type --mask_reshape_method $mask_reshape_method \

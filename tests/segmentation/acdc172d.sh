@@ -4,25 +4,19 @@
 if [ ! -d "data/AC17" ]
 then
     echo "AC17 data not found at 'data' directory. Downloading..."
-    wget -nv --load-cookies /tmp/cookies.txt \
-      "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt \
-      --keep-session-cookies --no-check-certificate \
-      'https://docs.google.com/uc?export=download&id=1Udss6UfsANrsy6_weHNhWbof8bn4VN8_' \
-      -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1Udss6UfsANrsy6_weHNhWbof8bn4VN8_" \
-      -O acdc_2017.tar.gz && rm -rf /tmp/cookies.txt
+    curl -O -J https://nextcloud.maparla.duckdns.org/s/cAENNxDn4E4rm7z/download
     mkdir -p data
     tar -zxf acdc_2017.tar.gz  -C data/
     rm acdc_2017.tar.gz
     echo "Done!"
+    [ "$1" == "only_data" ] && exit
 else
-  echo "AC17 data found at 'data' directory!"
+  echo "AC17 already downloaded!"
+  # Only download the data argument ./tests/segmentation/acdc172d.sh only_data
+  [ "$1" == "only_data" ] && exit
 fi
 
-# Only download the data argument ./tests/segmentation/acdc172d.sh only_data
-if [[ $1 == "only_data" ]]
-then
-  exit
-fi
+
 gpu="0,1"
 dataset="ACDC172D"
 problem_type="segmentation"
