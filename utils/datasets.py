@@ -760,12 +760,12 @@ def dataset_selector(train_aug, train_aug_img, val_aug, args, is_test=False):
 
         train_dataset = LVSC2Dataset(
             mode="train", transform=train_aug, img_transform=train_aug_img,
-            add_depth=args.add_depth, normalization=args.normalization
+            add_depth=args.add_depth, normalization=args.normalization, train_patients=args.lv_train_patients
         )
 
         val_dataset = LVSC2Dataset(
             mode="validation", transform=val_aug, img_transform=[],
-            add_depth=args.add_depth, normalization=args.normalization
+            add_depth=args.add_depth, normalization=args.normalization, train_patients=args.lv_train_patients
         )
 
         train_loader = DataLoader(
