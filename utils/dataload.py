@@ -158,6 +158,49 @@ def apply_volume_augmentations(list_images, transform, img_transform):
     return list_images
 
 
+def apply_volume_2Daugmentations(list_images, transform, img_transform, list_masks=None):
+    """
+    Apply same augmentations to volume images
+    :param list_images: (array) [num_images, height, width] Images to transform
+    :return: (array) [num_images, height, width] Transformed Images
+    """
+    if img_transform:
+        # Independent augmentations...
+        for indx, img in enumerate(list_images):
+            augmented = img_transform(image=img)
+            list_images[indx] = augmented['image']
+
+    if transform:
+        # All augmentations applied in same proportion and values
+        imgs_ids = ["image"] + ["image{}".format(idx + 2) for idx in range(len(list_images) - 1)]
+        if list_masks is not None:
+            masks_ids = ["mask"] + ["mask{}".format(idx + 2) for idx in range(len(list_images) - 1)]
+
+        aug_args = dict(zip(imgs_ids, list_images))
+        if list_masks is not None:
+            aug_args.update(dict(zip(masks_ids, list_masks)))
+
+        pair_ids_imgs = ["image{}".format(idx + 2) for idx in range(len(list_images) - 1)]
+        base_id_imgs = ["image"] * len(pair_ids_imgs)
+
+        if list_masks is not None:
+            pair_ids_masks = ["mask{}".format(idx + 2) for idx in range(len(list_masks) - 1)]
+            base_id_masks = ["mask"] * len(pair_ids_masks)
+
+        list_additional_targets = dict(zip(pair_ids_imgs, base_id_imgs))
+        if list_masks is not None:
+            list_additional_targets.update(dict(zip(pair_ids_masks, base_id_masks)))
+
+        volumetric_aug = albumentations.Compose(transform, additional_targets=list_additional_targets)
+        augmented = volumetric_aug(**aug_args)
+
+        list_images = np.stack([augmented[img] for img in imgs_ids])
+        if list_masks is not None:
+            list_masks = np.stack([augmented[mask] for mask in masks_ids])
+
+    return list_images, list_masks
+
+
 def add_volume_depth_channels(list_images):
     b, d, h, w = list_images.shape
     new_list_images = torch.empty((b, 3, h, w))

@@ -314,6 +314,7 @@ def test_step(val_loader, model, test_metrics, generated_overlays=1, overlays_pa
         os.makedirs(overlays_path, exist_ok=True)
 
     model.eval()
+    identifiers = []
     with torch.no_grad():
         for batch_indx, batch in enumerate(val_loader):
             img_id = batch["img_id"]
@@ -327,9 +328,9 @@ def test_step(val_loader, model, test_metrics, generated_overlays=1, overlays_pa
                 original_img = batch["original_img"]
 
             test_metrics.record(prob_preds, original_masks, original_img, generated_overlays, overlays_path, img_id)
+            identifiers.extend(img_id)
 
-    test_metrics.update()
-    return test_metrics
+    return test_metrics, identifiers
 
 
 def finish_swa(swa_model, train_loader, val_loader, args):

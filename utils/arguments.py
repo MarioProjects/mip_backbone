@@ -37,7 +37,7 @@ parser.add_argument('--add_depth', action='store_true', help='If apply image tra
 parser.add_argument('--model_name', type=str, default='simple_unet', help='Model name for training')
 parser.add_argument('--num_classes', type=int, default=1, help='Model output neurons')
 
-# Accept a list of string metrics: train.py --metrics iou dice hauss
+# Accept a list of string metrics: train.py --metrics iou dice hausdorff assd
 parser.add_argument('--metrics', '--names-list', nargs='+', default=[])
 
 parser.add_argument('--generated_overlays', type=int, default=-1, help='Number of generate masks overlays')

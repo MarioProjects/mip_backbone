@@ -23,13 +23,14 @@ test_metrics = MetricsAccumulator(
     include_background=test_loader.dataset.include_background, mask_reshape_method=args.mask_reshape_method
 )
 
-test_metrics = test_step(
+test_metrics, cases_ids = test_step(
     test_loader, model, test_metrics, generated_overlays=args.generated_overlays,
     overlays_path=f"{args.output_dir}/overlays/test_evaluation"
 )
 
-test_metrics.save_progress(args.output_dir, identifier="test_metrics")
+test_metrics.save_progress_cases(cases_ids, args.output_dir, identifier="test_metrics")
 print("\nResults:")
+test_metrics.update()
 test_metrics.report_best()
 
 if args.notify:

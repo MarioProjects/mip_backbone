@@ -108,7 +108,7 @@ class MMs2DDataset(Dataset):
         image = np.load(img_path)
 
         mask = None
-        if not(self.partition == "Training" and not df_entry["Labeled"]):
+        if not (self.partition == "Training" and not df_entry["Labeled"]):
             mask_path = os.path.join(
                 self.base_dir, self.partition, labeled_info, external_code,
                 f"{external_code}_sa_gt_slice{c_slice}_phase{c_phase}.npy"
@@ -291,7 +291,7 @@ class LVSC2Dataset(Dataset):
         :param normalization: (str) Normalization mode. One of 'reescale', 'standardize', 'global_standardize'
         """
 
-        if mode not in ["train", "validation", "test"]:
+        if mode not in ["train", "full_train", "validation", "test"]:
             assert False, "Unknown mode '{}'".format(mode)
 
         self.base_dir = os.path.join(relative_path, "data/LVSC")
@@ -301,7 +301,7 @@ class LVSC2Dataset(Dataset):
         self.num_classes = 1  # LV
         data, directory = [], ""
 
-        if mode in ["train", "validation"]:
+        if mode in ["train", "full_train", "validation"]:
             directory = os.path.join(self.base_dir, "Training")
         elif mode in ["test"]:
             directory = os.path.join(self.base_dir, "Validation")
@@ -390,10 +390,10 @@ class LVSC2Dataset(Dataset):
             image = d.add_depth_channels(image)
         mask = torch.from_numpy(np.expand_dims(mask, 0)).float()
 
-        if self.mode in ["validation", "test"]:  # 'image', 'original_img', 'original_mask', 'img_id'
-            return {"image": image, "original_img": original_image, "original_mask": original_mask, "img_id": img_id}
-
-        return {"image": image, "original_img": original_image, "label": mask, "original_mask": original_mask}
+        return {
+            "image": image, "original_img": original_image, "label": mask,
+            "original_mask": original_mask, "img_id": img_id
+        }
 
 
 class ACDC172Dataset(Dataset):
@@ -402,7 +402,7 @@ class ACDC172Dataset(Dataset):
     https://acdc.creatis.insa-lyon.fr/
     """
 
-    def __init__(self, mode, transform, img_transform, add_depth=True, normalization="normalize"):
+    def __init__(self, mode, transform, img_transform, add_depth=True, normalization="normalize", relative_path=""):
         """
         :param mode: (string) Dataset mode in ["train", "validation"]
         :param transform: (list) List of albumentations applied to image and mask
@@ -410,10 +410,10 @@ class ACDC172Dataset(Dataset):
         :param normalization: (str) Normalization mode. One of 'reescale', 'standardize', 'global_standardize'
         """
 
-        if mode not in ["train", "validation"]:
+        if mode not in ["train", "full_train", "validation"]:
             assert False, "Unknown mode '{}'".format(mode)
 
-        self.base_dir = "data/AC17"
+        self.base_dir = os.path.join(relative_path, "data/AC17")
         self.img_channels = 3
         self.class_to_cat = {1: "RV", 2: "MYO", 3: "LV", 4: "Mean"}
         self.num_classes = 4
@@ -434,7 +434,7 @@ class ACDC172Dataset(Dataset):
         np.random.shuffle(data)
         if mode == "train":
             data = data[:int(len(data) * .85)]
-        else:
+        elif mode == "validation":
             data = data[int(len(data) * .85):]
 
         self.data = data
@@ -494,10 +494,144 @@ class ACDC172Dataset(Dataset):
             image = d.add_depth_channels(image)
         mask = torch.from_numpy(np.expand_dims(mask, 0)).float()
 
-        if self.mode == "validation":  # 'image', 'original_img', 'original_mask', 'img_id'
-            return {"image": image, "original_img": original_image, "original_mask": original_mask, "img_id": img_id}
+        return {
+            "image": image, "original_img": original_image,
+            "original_mask": original_mask, "label": mask, "img_id": img_id
+        }
 
-        return {"image": image, "label": mask, "original_mask": original_mask}
+
+class ACDC173Dataset(Dataset):
+    """
+    3D Dataset for ACDC Challenge.
+    https://acdc.creatis.insa-lyon.fr/
+    """
+
+    def __init__(self, mode, transform, img_transform, add_depth=True, normalization="normalize", relative_path=""):
+        """
+        :param mode: (string) Dataset mode in ["train", "validation"]
+        :param transform: (list) List of albumentations applied to image and mask
+        :param img_transform: (list) List of albumentations applied to image only
+        :param normalization: (str) Normalization mode. One of 'reescale', 'standardize', 'global_standardize'
+        """
+
+        if mode not in ["train", "full_train", "validation"]:
+            assert False, "Unknown mode '{}'".format(mode)
+
+        self.base_dir = os.path.join(relative_path, "data/AC17")
+        self.img_channels = 3
+        self.class_to_cat = {1: "RV", 2: "MYO", 3: "LV", 4: "Mean"}
+        self.num_classes = 4
+        self.include_background = False
+
+        data = []
+        for subdir, dirs, files in os.walk(self.base_dir):
+            for file in files:
+                entry = os.path.join(subdir, file)
+                if "_gt" in entry and (".nii" in entry or ".nii.gz" in entry):
+                    data.append(entry)
+
+        if len(data) == 0:
+            assert False, 'You have to transform volumes to 2D slices: ' \
+                          'python tools/nifti2slices.py --data_path "data/AC17"'
+
+        np.random.seed(1)
+        np.random.shuffle(data)
+        if mode == "train":
+            data = data[:int(len(data) * .85)]
+        elif mode == "validation":
+            data = data[int(len(data) * .85):]
+
+        self.data = data
+        self.mode = mode
+        self.normalization = normalization
+
+        self.transform = albumentations.Compose(transform)
+        self.img_transform = albumentations.Compose(img_transform)
+        self.add_depth = add_depth
+
+    def __len__(self):
+        return len(self.data)
+
+    @staticmethod
+    def custom_collate(batch):
+        """
+
+        Args:
+            batch: list of dataset items (from __getitem__). In this case batch is a list of dicts with
+                   key image, and depending of validation or train different keys
+
+        Returns:
+
+        """
+        # We have to modify "original_mask" as has different shapes
+        not_stack = ["original_mask", "original_img", "img_id", "phase",
+                     "mask_header", "mask_affine", "vol_header", "vol_affine"]
+        batch_keys = list(batch[0].keys())
+        res = {bkey: [] for bkey in batch_keys}
+        for belement in batch:
+            for bkey in batch_keys:
+                res[bkey].append(belement[bkey])
+
+        for bkey in batch_keys:
+            if bkey in not_stack:
+                continue  # We wont stack over original_mask...
+            res[bkey] = torch.stack(res[bkey])
+
+        return res
+
+    def __getPhase(self, info_path, volume_path):
+        # Using readlines()
+        file1 = open(info_path, 'r')
+        Lines = file1.readlines()
+
+        ed, es = 0, 0
+        for line in Lines:
+            line_info = line.strip()
+            ed = int(line_info.split(":")[-1]) if "ED" in line_info else ed
+            es = int(line_info.split(":")[-1]) if "ES" in line_info else es
+
+        vol_phase = int(volume_path[volume_path.find("frame")+len("frame"):-7])  # -7 due to .nii.gz
+        if ed == vol_phase:
+            return "ED"
+        elif es == vol_phase:
+            return "ES"
+        else:
+            assert False, f"Unknown phase for {volume_path}"
+
+    def __getitem__(self, idx):
+
+        volume_path = self.data[idx].replace("_gt", "")
+        volume, affine, header = d.load_nii(volume_path)  # This volume is from a phase [height, width, slices]
+        volume = volume.transpose(2, 0, 1)
+
+        volume_info_path = os.path.join("/".join(self.data[idx].split("/")[:-1]), "Info.cfg")
+        vol_phase = self.__getPhase(volume_info_path, volume_path)
+
+        mask_path = self.data[idx]
+        mask, mask_affine, mask_header = d.load_nii(mask_path)
+        mask = mask.transpose(2, 0, 1)
+
+        img_id = self.data[idx].split("/")[-1][:-10]
+
+        original_volume = copy.deepcopy(volume)
+        original_mask = copy.deepcopy(mask)
+
+        volume, mask = d.apply_volume_2Daugmentations(volume, self.transform, self.img_transform, mask)
+        volume = d.apply_normalization(volume, self.normalization)
+
+        # We have to stack volume as batch
+        volume = np.expand_dims(volume, axis=0) if not self.add_depth else volume
+        volume = torch.from_numpy(volume)
+
+        if self.add_depth:
+            volume = d.add_volume_depth_channels(volume.unsqueeze(1))
+        mask = torch.from_numpy(np.expand_dims(mask, 0)).float() if mask is not None else None
+
+        return {
+            "image": volume, "original_img": original_volume, "vol_affine": affine, "vol_header": header,
+            "original_mask": original_mask, "label": mask, "mask_affine": mask_affine, "mask_header": mask_header,
+            "img_id": img_id, "phase": vol_phase
+        }
 
 
 def find_values(string, label, label_type):

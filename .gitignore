@@ -138,3 +138,9 @@ data/*
 # Results
 results/*
 !results/.gitkeep
+
+# CrossDatabase Preds
+notebooks/CrossDatabase
+
+# Pytorch checkpoints
+*.pt

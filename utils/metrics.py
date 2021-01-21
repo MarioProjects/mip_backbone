@@ -2,7 +2,9 @@ import os
 from utils.general import dict2df, convert_multiclass_mask, reshape_masks, plot_save_pred
 import numpy as np
 import torch
-import monai
+from medpy.metric.binary import hd, dc, jc, assd
+import functools
+import operator
 
 AVAILABLE_METRICS = ("accuracy", "iou", "dice", "assd", "hausdorff")
 
@@ -42,8 +44,7 @@ class MetricsAccumulator:
 
         self.include_background = include_background
         self.metric_list = metric_list
-        self.num_classes = (num_classes-1) if num_classes > 1 and not include_background else num_classes
-        self.metric_methods_args = {}
+        self.num_classes = (num_classes - 1) if num_classes > 1 and not include_background else num_classes
         self.metrics_helpers = {}
         self.metric_methods = self.__metrics_init()
         self.metrics = {metric_name: [] for metric_name in metric_list}
@@ -60,23 +61,19 @@ class MetricsAccumulator:
                 self.metrics_helpers["accuracy_best_value"] = -1
                 assert False, f"Accuracy metric not implemented"
             elif metric_str in ["iou"]:
-                self.metric_methods_args[metric_str] = {}
                 metric_methods.append(jaccard_coef)
                 self.metrics_helpers["iou_best_method"] = "max"
                 self.metrics_helpers["iou_best_value"] = -1
             elif metric_str in ["dice"]:
-                self.metric_methods_args[metric_str] = {}
                 metric_methods.append(dice_coef)
                 self.metrics_helpers["dice_best_method"] = "max"
                 self.metrics_helpers["dice_best_value"] = -1
             elif metric_str in ["hausdorff"]:
-                self.metric_methods_args[metric_str] = {"label_idx": 1}
-                metric_methods.append(monai.metrics.compute_hausdorff_distance)
+                metric_methods.append(secure_hd)
                 self.metrics_helpers["hausdorff_best_method"] = "min"
                 self.metrics_helpers["hausdorff_best_value"] = 10e8
             elif metric_str in ["assd"]:
-                self.metric_methods_args[metric_str] = {"label_idx": 1}
-                metric_methods.append(monai.metrics.compute_average_surface_distance)
+                metric_methods.append(secure_assd)
                 self.metrics_helpers["assd_best_method"] = "min"
                 self.metrics_helpers["assd_best_value"] = 10e8
         return metric_methods
@@ -127,7 +124,7 @@ class MetricsAccumulator:
                     for indx, metric in enumerate(self.metric_methods):
                         self.metrics[self.metric_list[indx]][-1][
                             current_class if self.include_background else (current_class - 1)] += [
-                            metric(y_true, y_pred, **self.metric_methods_args[self.metric_list[indx]])]
+                            metric(y_true, y_pred)]
 
                 if generated_overlays > 0 and len(os.listdir(overlays_path)) < generated_overlays:
                     plot_save_pred(original_img[pred_indx], original_mask, pred_mask, overlays_path, img_id[pred_indx])
@@ -189,6 +186,20 @@ class MetricsAccumulator:
         }
         dict2df(nested_metrics, os.path.join(output_dir, f'{identifier}_progress.csv'))
 
+    def save_progress_cases(self, cases_ids, output_dir, identifier=""):
+        nested_metrics = {
+            metric_name:
+                [item for sublist in self.metrics[metric_name] for item in sublist]
+            for metric_name in self.metrics
+        }
+
+        # Flatten the list of values for a given metric always!
+        for metric_name in nested_metrics:
+            nested_metrics[metric_name] = functools.reduce(operator.iconcat, nested_metrics[metric_name], [])
+
+        nested_metrics["ids"] = cases_ids
+        dict2df(nested_metrics, os.path.join(output_dir, f'{identifier}_progress.csv'))
+
     def __str__(self, precision=3):
         output_str = ""
         for metric_key in self.metric_list:
@@ -223,3 +234,23 @@ def dice_coef(y_true, y_pred):
     intersection = np.sum(y_true * y_pred, axis=None)
     summation = np.sum(y_true, axis=None) + np.sum(y_pred, axis=None)
     return (2.0 * intersection + SMOOTH) / (summation + SMOOTH)
+
+
+def secure_hd(a, b):
+    # shape -> (height, width)
+    # ToDo: To overcome infinity value perform over volumes
+    try:
+        res = hd(a, b)
+    except:
+        res = -1
+    return res
+
+
+def secure_assd(a, b):
+    # shape -> (height, width)
+    # ToDo: To overcome infinity value perform over volumes
+    try:
+        res = assd(a, b)
+    except:
+        res = -1
+    return res

@@ -85,6 +85,16 @@ def reshape_masks(ndarray, to_shape, mask_reshape_method):
     return ndarray  # reshaped
 
 
+def reshape_volume(volume, to_shape, mask_reshape_method):
+    """
+    volume: (np.array) Volume Mask Array to reshape (slices, height, width)
+    """
+    res = []
+    for c_slice in volume:
+        res.append(reshape_masks(c_slice, to_shape, mask_reshape_method))
+    return np.array(res)
+
+
 def plot_save_pred(original_img, original_mask, pred_mask, save_dir, img_id):
     import warnings
     warnings.filterwarnings('ignore')
