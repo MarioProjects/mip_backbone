@@ -316,25 +316,25 @@ class LVSC2Dataset(Dataset):
                         continue
                     data.append(entry)
 
-        np.random.seed(1)
-        patient_list = np.sort(np.unique([elem.split("/")[-2] for elem in data]))
-        train_indx = np.random.choice(range(patient_list.shape[0]), size=(train_patients,), replace=False)
-        ind = np.zeros(patient_list.shape[0], dtype=bool)
-        ind[train_indx] = True
-        val_indx = ~ind
+        if mode in ["train", "validation"]:
+            np.random.seed(1)
+            patient_list = np.sort(np.unique([elem.split("/")[-2] for elem in data]))
+            train_indx = np.random.choice(range(patient_list.shape[0]), size=(train_patients,), replace=False)
+            ind = np.zeros(patient_list.shape[0], dtype=bool)
+            ind[train_indx] = True
+            val_indx = ~ind
 
-        np.random.shuffle(data)
-        if mode == "train":
-            data = [elem for elem in data if elem.split("/")[-2] in patient_list[train_indx]]
-        elif mode == "validation":
-            if train_patients > 85:
-                # If there are not too much patients take randomly
-                np.random.seed(1)
-                np.random.shuffle(data)
-                data = data[int(len(data) * .85):]
-            else:
-                # Only get first 15 patients for validation, not ALL
-                data = [elem for elem in data if elem.split("/")[-2] in patient_list[val_indx][:15]]
+            if mode == "train":
+                data = [elem for elem in data if elem.split("/")[-2] in patient_list[train_indx]]
+            elif mode == "validation":
+                if train_patients > 85:
+                    # If there are not too much patients take randomly
+                    np.random.seed(1)
+                    np.random.shuffle(data)
+                    data = data[int(len(data) * .85):]
+                else:
+                    # Only get first 15 patients for validation, not ALL
+                    data = [elem for elem in data if elem.split("/")[-2] in patient_list[val_indx][:15]]
 
         self.data = data
         self.mode = mode
