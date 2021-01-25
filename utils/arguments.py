@@ -74,6 +74,7 @@ parser.add_argument(
 parser.add_argument('--selected_class', type=str, default="", help='If there is a model checkpoint to load')
 
 parser.add_argument('--lv_train_patients', type=int, default=100, help='Number of training patients for LV problem')
+parser.add_argument('--acdc_train_patients', type=int, default=100, help='Number of training patients for ACDC problem')
 
 args = parser.parse_args()
 

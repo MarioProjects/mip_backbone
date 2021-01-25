@@ -416,7 +416,8 @@ class ACDC172Dataset(Dataset):
     https://acdc.creatis.insa-lyon.fr/
     """
 
-    def __init__(self, mode, transform, img_transform, add_depth=True, normalization="normalize", relative_path=""):
+    def __init__(self, mode, transform, img_transform, add_depth=True, normalization="normalize", relative_path="",
+                 train_patients=100):
         """
         :param mode: (string) Dataset mode in ["train", "validation"]
         :param transform: (list) List of albumentations applied to image and mask
@@ -444,12 +445,25 @@ class ACDC172Dataset(Dataset):
             assert False, 'You have to transform volumes to 2D slices: ' \
                           'python tools/nifti2slices.py --data_path "data/AC17"'
 
-        np.random.seed(1)
-        np.random.shuffle(data)
-        if mode == "train":
-            data = data[:int(len(data) * .85)]
-        elif mode == "validation":
-            data = data[int(len(data) * .85):]
+        if mode in ["train", "validation"]:
+            np.random.seed(1)
+            patient_list = np.sort(np.unique([elem.split("/")[-2] for elem in data]))
+            train_indx = np.random.choice(range(patient_list.shape[0]), size=(train_patients,), replace=False)
+            ind = np.zeros(patient_list.shape[0], dtype=bool)
+            ind[train_indx] = True
+            val_indx = ~ind
+
+            if mode == "train":
+                data = [elem for elem in data if elem.split("/")[-2] in patient_list[train_indx]]
+            elif mode == "validation":
+                if train_patients > 85:
+                    # If there are not too much patients take randomly
+                    np.random.seed(1)
+                    np.random.shuffle(data)
+                    data = data[int(len(data) * .85):]
+                else:
+                    # Only get first 15 patients for validation, not ALL
+                    data = [elem for elem in data if elem.split("/")[-2] in patient_list[val_indx][:15]]
 
         self.data = data
         self.mode = mode
@@ -782,12 +796,12 @@ def dataset_selector(train_aug, train_aug_img, val_aug, args, is_test=False):
             assert False, "Not test partition available"
         train_dataset = ACDC172Dataset(
             mode="train", transform=train_aug, img_transform=train_aug_img,
-            add_depth=args.add_depth, normalization=args.normalization
+            add_depth=args.add_depth, normalization=args.normalization, train_patients=args.acdc_train_patients
         )
 
         val_dataset = ACDC172Dataset(
             mode="validation", transform=val_aug, img_transform=[],
-            add_depth=args.add_depth, normalization=args.normalization
+            add_depth=args.add_depth, normalization=args.normalization, train_patients=args.acdc_train_patients
         )
 
         train_loader = DataLoader(
